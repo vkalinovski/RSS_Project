@@ -36,19 +36,21 @@ def clean_value(val: str) -> str:
     return val.strip() if isinstance(val, str) and val.strip() else None
 
 def fix_date_format(date_str: str) -> str:
-    """
-    Преобразует ISO8601 к 'YYYY-MM-DD HH:MM:SS'
-    """
     from datetime import datetime
     if not date_str:
-        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     try:
-        core   = date_str.split("+")[0]
-        dt_obj = datetime.fromisoformat(core)
+        # Убрать временную зону и микросекунды
+        core = date_str.split('+')[0].split('.')[0].strip()
+        dt_obj = datetime.strptime(core, '%Y-%m-%dT%H:%M:%S')
         return dt_obj.strftime("%Y-%m-%d %H:%M:%S")
-    except Exception:
-        print(f"[{now_utc()}] Неправильный формат даты: {date_str}")
-        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        try:
+            dt_obj = datetime.strptime(core, '%a, %d %b %Y %H:%M:%S')
+            return dt_obj.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            print(f"[{now_utc()}] Неправильный формат даты: {date_str}")
+            return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
 def save_news_to_db(news: List[Dict], politician: str):
     """
