@@ -7,26 +7,22 @@ Original file is located at
     https://colab.research.google.com/drive/1y_j7EBQXocwJpJVWDYcIBhyr2w0ZG75C
 """
 
+# File: main.py
 import os
 import sys
 import subprocess
+from datetime import datetime
 
-# ----------------------------------------------------------------------------
-# 0️⃣ Автоматическое клонирование репозитория (если не загружен локально)
-# ----------------------------------------------------------------------------
+# 0️⃣ Клонируем репозиторий, если ещё нет
 REPO_URL = "https://github.com/vkalinovski/RSS_Project.git"
 LOCAL_DIR = "RSS_Project"
 if not os.path.isdir(LOCAL_DIR):
-    print(f"Cloning repository from {REPO_URL}...")
     subprocess.run(["git", "clone", REPO_URL, LOCAL_DIR], check=True)
 
-# Добавляем папку с клонированными модулями в PYTHONPATH
+# Добавляем модули в путь
 sys.path.insert(0, os.path.abspath(LOCAL_DIR))
 
-# ----------------------------------------------------------------------------
-# 1️⃣ Импорт модулей проекта
-# ----------------------------------------------------------------------------
-from rss_feeds import RSS_FEEDS
+# 1️⃣ Импорты
 from api_fetcher import fetch_newsapi_articles
 from rss import fetch_rss_articles
 from database_utils import create_database, save_news_to_db
@@ -34,36 +30,38 @@ from sentiment_analysis import analyze_sentiment
 from analyze import (
     build_timeseries,
     plot1_timeseries, plot2_bar_total, plot3_rolling, plot4_monthly,
-    plot5_pie_sources, plot6_weekday, plot7_top_days,
-    plot8_cumulative, plot9_ratio, plot10_correlation
+    plot5_pie_sources, plot6_weekday, plot7_top_days, plot8_cumulative,
+    plot9_sentiment_dist, plot10_top_sources_per_politician
 )
 from utils import now_utc
 import pandas as pd
 
-# ----------------------------------------------------------------------------
 # 2️⃣ Конфигурация
-# ----------------------------------------------------------------------------
 KEYWORDS  = ["Emmanuel Macron", "Marine Le Pen"]
-# Бесплатный тариф NewsAPI отдаёт не более 100 статей за запрос
 MAX_ITEMS = 100
-# Папка на Google Drive для всех выходных файлов
-OUT_DIR   = "/content/gdrive/MyDrive/test"
+OUT_DIR   = "/content/gdrive/MyDrive/test"  # ваша папка на Google Drive
 
-# ----------------------------------------------------------------------------
-# 3️⃣ Основная логика: сбор → фильтрация → сохранение → анализ → визуализация
-# ----------------------------------------------------------------------------
 def one_cycle():
-    print(f"[{now_utc()}] Запуск цикла: сбор → анализ → сохранение")
+    print(f"[{now_utc()}] Старт цикла…")
 
-    # 1) Инициализация (или проверка) БД
+    # — Инициализация БД
     create_database()
 
-    # 2) Сбор статей
+    # — Сбор статей
     rss_news = fetch_rss_articles(MAX_ITEMS)
     api_news = fetch_newsapi_articles(KEYWORDS, MAX_ITEMS)
     all_news = rss_news + api_news
 
-    # 3) Фильтрация и категоризация по политическим деятелям
+    # — Фильтр по дате >= 2024-01-01
+    all_news = [
+        n for n in all_news
+        if datetime.strptime(n["published"], "%Y-%m-%d") >= datetime(2024,1,1)
+    ]
+    if not all_news:
+        print(f"[{now_utc()}] Нет статей с 2024-01-01 и позже.")
+        return
+
+    # — Фильтрация и категоризация
     macron = []
     lepen  = []
     for art in all_news:
@@ -73,26 +71,25 @@ def one_cycle():
         if "Marine Le Pen" in text:
             lepen.append({**art, "politician": "Marine Le Pen"})
 
-    # Если ничего не найдено — выходим
     if not macron and not lepen:
-        print(f"[{now_utc()}] Не найдено ни одной статьи по ключевым словам.")
+        print(f"[{now_utc()}] Статьи по Macron/Le Pen не найдены.")
         return
 
-    # 4) Сохранение в SQLite
+    # — Сохранение в БД
     save_news_to_db(macron, "Emmanuel Macron")
     save_news_to_db(lepen,  "Marine Le Pen")
 
-    # 5) Тональный анализ
-    combined = macron + lepen
+    # — Сентимент-анализ
+    combined    = macron + lepen
     sentimented = analyze_sentiment(combined)
 
-    # 6) Построение временного ряда и сохранение CSV
+    # — Временной ряд + CSV
     df = pd.DataFrame(sentimented)
     ts = build_timeseries(df)
     os.makedirs(OUT_DIR, exist_ok=True)
     ts.to_csv(os.path.join(OUT_DIR, "timeseries.csv"), index=True)
 
-    # 7) Генерация 10 графиков глубокого анализа
+    # — 10 графиков
     plot1_timeseries(ts, OUT_DIR)
     plot2_bar_total(ts, OUT_DIR)
     plot3_rolling(ts, OUT_DIR)
@@ -101,13 +98,10 @@ def one_cycle():
     plot6_weekday(ts, OUT_DIR)
     plot7_top_days(ts, OUT_DIR)
     plot8_cumulative(ts, OUT_DIR)
-    plot9_ratio(ts, OUT_DIR)
-    plot10_correlation(ts, OUT_DIR)
+    plot9_sentiment_dist(df, OUT_DIR)
+    plot10_top_sources_per_politician(df, OUT_DIR)
 
-    print(f"[{now_utc()}] Цикл завершён. Все результаты сохранены в {OUT_DIR}")
+    print(f"[{now_utc()}] Цикл завершён. Результаты — в {OUT_DIR}")
 
-# ----------------------------------------------------------------------------
-# 4️⃣ Точка входа
-# ----------------------------------------------------------------------------
 if __name__ == '__main__':
     one_cycle()
