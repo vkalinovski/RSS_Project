@@ -1,21 +1,17 @@
-# -*- coding: utf-8 -*-
 import os
 from typing import List, Dict
 from utils import now_utc
 from database_utils import save_news_to_db, categorize_news
-from newsapi import NewsApiClient  # pip install newsapi-python
+from newsapi import NewsApiClient
 
-# Используем библиотеку newsapi-python для упрощения запросов
 API_KEY_VAR = "NEWSAPI_KEY"
+
 
 def fetch_newsapi_articles(
     keywords: List[str],
     max_items: int = 100,
     language: str = "en"
 ) -> List[Dict]:
-    """
-    Сбор статей из NewsAPI.org по ключевым словам.
-    """
     api_key = os.getenv(API_KEY_VAR)
     if not api_key:
         print(f"[{now_utc()}] Ошибка: не задан {API_KEY_VAR}")
@@ -24,8 +20,7 @@ def fetch_newsapi_articles(
     all_articles: List[Dict] = []
     for kw in keywords:
         resp = client.get_everything(q=kw, language=language, page_size=max_items, sort_by="publishedAt")
-        arts = resp.get("articles", [])
-        for art in arts:
+        for art in resp.get("articles", []):
             all_articles.append({
                 "source":   art.get("source", {}).get("name"),
                 "title":    art.get("title"),
@@ -37,15 +32,17 @@ def fetch_newsapi_articles(
     print(f"[{now_utc()}] Получено через NewsAPI: {len(all_articles)} статей")
     return all_articles
 
-def update_news(keywords: List[str] = ["Trump","Biden"], max_items: int = 100):
-    """
-    Загружает и сохраняет новости по списку keywords.
-    """
+
+def update_news(
+    keywords: List[str] = ["Trump", "Xi Jinping", "Putin"],
+    max_items: int = 100
+):
     raw = fetch_newsapi_articles(keywords, max_items=max_items)
     if not raw:
         return
-    trump_news, biden_news, both_news = categorize_news(raw)
+    trump_news, xi_news, putin_news, multiple_news = categorize_news(raw)
     save_news_to_db(trump_news, "Trump")
-    save_news_to_db(biden_news, "Biden")
-    save_news_to_db(both_news, "Trump/Biden")
+    save_news_to_db(xi_news, "Xi Jinping")
+    save_news_to_db(putin_news, "Putin")
+    save_news_to_db(multiple_news, "Multiple")
     print(f"[{now_utc()}] Обновление новостей через NewsAPI завершено.")
