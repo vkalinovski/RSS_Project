@@ -21,11 +21,11 @@ sys.path.insert(0, os.path.abspath(LOCAL_DIR))
 # ----------------------------------------------------------------------------
 # 1️⃣ Импорт модулей проекта
 # ----------------------------------------------------------------------------
-from rss            import fetch_rss_articles
-from api_fetcher    import fetch_newsapi_articles
-from database_utils import create_database, save_news_to_db
+from rss               import fetch_rss_articles
+from api_fetcher       import fetch_newsapi_articles
+from database_utils    import create_database, save_news_to_db
 from sentiment_analysis import analyze_sentiment
-from analyze        import (
+from analyze           import (
     build_timeseries,
     plot_overall_timeseries,
     plot_monthly_aggregation,
@@ -34,13 +34,13 @@ from analyze        import (
     plot_sentiment_trends,
     plot_top_sources
 )
-from utils          import now_utc
+from utils             import now_utc
 
 # ----------------------------------------------------------------------------
 # 2️⃣ Конфигурация
 # ----------------------------------------------------------------------------
 KEYWORDS       = ["Xi Jinping", "Donald Trump"]
-MAX_ITEMS      = 100                  # лимит бесплатного тарифа NewsAPI
+MAX_ITEMS      = 100                  # лимит free-тарифа NewsAPI
 API_LANGUAGES  = ["en"]               # запрашиваем только англоязычные статьи
 OUT_DIR        = "/content/gdrive/MyDrive/test"  # папка на Google Drive
 
@@ -91,13 +91,17 @@ def one_cycle():
     combined    = xi + trump
     sentimented = analyze_sentiment(combined)
 
-    # 7) Построение временного ряда и экспорт CSV
+    # 7) Построение DataFrame и временного ряда
     df = pd.DataFrame(sentimented)
+    # Обеспечиваем наличие published_at для анализа тональности
+    df["published_at"] = pd.to_datetime(df["published"]).dt.strftime("%Y-%m-%d")
     ts = build_timeseries(df)
+
+    # 8) Сохранение CSV
     os.makedirs(OUT_DIR, exist_ok=True)
     ts.to_csv(os.path.join(OUT_DIR, "timeseries.csv"), index=True)
 
-    # 8️⃣ Шесть ключевых графиков
+    # 9️⃣ Генерация шести ключевых графиков
     plot_overall_timeseries(ts, OUT_DIR)
     plot_monthly_aggregation(ts, OUT_DIR)
     plot_weekly_aggregation(ts, OUT_DIR)
