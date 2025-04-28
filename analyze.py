@@ -1,182 +1,144 @@
+# File: RSS_Project/analyze.py
+
+import sqlite3
+from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
-from pathlib import Path
+import matplotlib.dates as mdates
+from datetime import datetime
 
-# Анализ с сентября 2024
-START_DATE = pd.to_datetime("2024-09-01")
+# Путь к базе
+DB_PATH = Path(__file__).parent / "news.db"
+# Дата старта
+START_DATE = pd.to_datetime("2024-09-01").date()
+
+def load_data():
+    """
+    Загружает из SQLite колонки source, published_at, politician, sentiment,
+    приводит published_at к date и отсекает всё до 2024-09-01.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    df = pd.read_sql("SELECT source, published_at, politician, sentiment FROM news", conn)
+    conn.close()
+
+    df["published_at"] = pd.to_datetime(df["published_at"]).dt.date
+    df = df[df["published_at"] >= START_DATE]
+    # Оставляем только нужные категории
+    df = df[df["politician"].isin(["Trump", "Biden", "Trump/Biden"])]
+    return df
 
 def build_timeseries(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Строит DataFrame временных рядов: строки — даты (published_at),
-    столбцы — политики, значение — число упоминаний.
-    """
-    df = df.copy()
-    df['published_at'] = pd.to_datetime(df['published_at'])
-    df = df[df['published_at'] >= START_DATE]
+    """Собирает DataFrame с датами и упоминаниями каждого политика."""
     ts = (
         df
-        .groupby(['published_at','politician'])
+        .groupby(["published_at","politician"])
         .size()
         .unstack(fill_value=0)
+        .sort_index()
     )
     ts.index = pd.to_datetime(ts.index)
-    return ts.sort_index()
+    return ts
 
-def plot_overall_timeseries(ts: pd.DataFrame, out_dir: str):
-    """Ежедневные упоминания (с 2024-09-01)."""
-    out_dir = Path(out_dir)
-    ts = ts[ts.index >= START_DATE]
-
-    plt.figure(figsize=(10, 5))
+def plot_overall_timeseries(ts: pd.DataFrame, out_dir: Path):
+    """Ежедневный временной ряд."""
+    fig, ax = plt.subplots(figsize=(12, 6))
     for col in ts.columns:
-        plt.plot(ts.index, ts[col], label=col)
-    plt.title("Ежедневные упоминания (с 2024-09-01)")
-    plt.xlabel("Дата")
-    plt.ylabel("Частота упоминаний")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(out_dir / "overall_daily.png")
-    plt.close()
+        ax.plot(ts.index, ts[col], label=col, linewidth=2, alpha=0.8)
+    ax.set_title("Ежедневные упоминания (с 2024-09-01)")
+    ax.set_xlabel("Дата"); ax.set_ylabel("Число упоминаний")
+    ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
+    ax.legend(title="Политик"); ax.grid(True)
+    fig.tight_layout()
+    fig.savefig(out_dir/"overall_daily.png")
+    plt.close(fig)
 
-def plot_weekly_aggregation(ts: pd.DataFrame, out_dir: str):
-    """Недельные суммарные упоминания (с 2024-09-01)."""
-    out_dir = Path(out_dir)
-    ts = ts[ts.index >= START_DATE]
-    weekly = ts.resample('W-MON').sum()
-
-    plt.figure(figsize=(10, 5))
+def plot_weekly_aggregation(ts: pd.DataFrame, out_dir: Path):
+    """Недельная агрегация (понедельник→понедельник)."""
+    weekly = ts.resample("W-MON").sum()
+    fig, ax = plt.subplots(figsize=(12,6))
     for col in weekly.columns:
-        plt.plot(weekly.index, weekly[col], marker='o', label=col)
-    plt.title("Недельные упоминания (с 2024-09-01)")
-    plt.xlabel("Неделя")
-    plt.ylabel("Сумма упоминаний")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(out_dir / "weekly.png")
-    plt.close()
+        ax.plot(weekly.index, weekly[col], marker="o", label=col)
+    ax.set_title("Недельные упоминания (с 2024-09-01)")
+    ax.set_xlabel("Неделя"); ax.set_ylabel("Сумма упоминаний")
+    ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
+    ax.legend(title="Политик"); ax.grid(True)
+    fig.tight_layout()
+    fig.savefig(out_dir/"weekly.png")
+    plt.close(fig)
 
-def plot_monthly_aggregation(ts: pd.DataFrame, out_dir: str):
-    """Месячные суммарные упоминания (с 2024-09-01)."""
-    out_dir = Path(out_dir)
-    ts = ts[ts.index >= START_DATE]
-    monthly = ts.resample('MS').sum()
+def plot_monthly_aggregation(ts: pd.DataFrame, out_dir: Path):
+    """Месячная агрегация."""
+    monthly = ts.resample("MS").sum()
+    fig, ax = plt.subplots(figsize=(10,5))
+    monthly.plot(kind="bar", ax=ax)
+    ax.set_title("Месячные упоминания (с 2024-09-01)")
+    ax.set_xlabel("Месяц"); ax.set_ylabel("Сумма упоминаний")
+    ax.tick_params(axis="x", rotation=45)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    fig.tight_layout()
+    fig.savefig(out_dir/"monthly.png")
+    plt.close(fig)
 
-    plt.figure(figsize=(8, 5))
-    monthly.plot(kind='bar')
-    plt.title("Месячные упоминания (с 2024-09-01)")
-    plt.xlabel("Месяц")
-    plt.ylabel("Суммарное число упоминаний")
-    plt.xticks(rotation=45, ha='right')
-    plt.tight_layout()
-    plt.savefig(out_dir / "monthly.png")
-    plt.close()
-
-def plot_cumulative(ts: pd.DataFrame, out_dir: str):
-    """Кумулятивная кривая упоминаний (с 2024-09-01)."""
-    out_dir = Path(out_dir)
-    ts = ts[ts.index >= START_DATE]
+def plot_cumulative(ts: pd.DataFrame, out_dir: Path):
+    """Кумулятивный график."""
     cum = ts.cumsum()
-
-    plt.figure(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(12,6))
     for col in cum.columns:
-        plt.plot(cum.index, cum[col], label=col)
-    plt.title("Кумулятивные упоминания (с 2024-09-01)")
-    plt.xlabel("Дата")
-    plt.ylabel("Кумулятивное число")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(out_dir / "cumulative.png")
-    plt.close()
+        ax.plot(cum.index, cum[col], label=col, linewidth=2)
+    ax.set_title("Кумулятивные упоминания (с 2024-09-01)")
+    ax.set_xlabel("Дата"); ax.set_ylabel("Накопленное число")
+    ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
+    ax.legend(title="Политик"); ax.grid(True)
+    fig.tight_layout()
+    fig.savefig(out_dir/"cumulative.png")
+    plt.close(fig)
 
-def plot_sentiment_trends(df: pd.DataFrame, out_dir: str):
-    """Тренд тональности по неделям (с 2024-09-01)."""
-    out_dir = Path(out_dir)
-    df = df.copy()
-    df['published_at'] = pd.to_datetime(df['published_at'])
-    df = df[df['published_at'] >= START_DATE]
-    df['week'] = df['published_at'].dt.to_period('W-MON').apply(lambda r: r.start_time)
+def plot_sentiment_trends(df: pd.DataFrame, out_dir: Path):
+    """Тональность по неделям."""
+    df2 = df.copy()
+    df2["week"] = pd.to_datetime(df2["published_at"]).dt.to_period("W-MON").apply(lambda r:r.start_time)
+    fig, ax = plt.subplots(figsize=(12,6))
+    for pol in df2["politician"].unique():
+        pivot = df2[df2["politician"]==pol].groupby(["week","sentiment"]).size().unstack(fill_value=0)
+        for s in pivot.columns:
+            ax.plot(pivot.index.to_timestamp(), pivot[s], marker="o", label=f"{pol} – {s}")
+    ax.set_title("Тональность по неделям (с 2024-09-01)")
+    ax.set_xlabel("Неделя"); ax.set_ylabel("Кол-во статей")
+    ax.xaxis.set_major_locator(mdates.AutoDateLocator()); 
+    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
+    ax.legend(); ax.grid(True)
+    fig.tight_layout()
+    fig.savefig(out_dir/"sentiment_trends.png")
+    plt.close(fig)
 
-    plt.figure(figsize=(10, 5))
-    for pol in df['politician'].unique():
-        pivot = df[df['politician'] == pol].groupby(['week','sentiment']).size().unstack(fill_value=0)
-        for sentiment in pivot.columns:
-            plt.plot(pivot.index, pivot[sentiment], marker='o', label=f"{pol} – {sentiment}")
+def plot_top_sources(df: pd.DataFrame, out_dir: Path):
+    """Топ-5 источников на политика."""
+    df2 = df[df["politician"]!="Trump/Biden"]
+    for pol in ["Trump","Biden"]:
+        cnt = df2[df2["politician"]==pol]["source"].value_counts().head(5)
+        fig, ax = plt.subplots(figsize=(6,4))
+        cnt.plot(kind="bar", ax=ax)
+        ax.set_title(f"Топ-5 источников: {pol}")
+        ax.set_xlabel("Источник"); ax.set_ylabel("Упоминания")
+        ax.tick_params(axis="x", rotation=45)
+        ax.grid(axis="y", linestyle="--", alpha=0.7)
+        fig.tight_layout()
+        fig.savefig(out_dir/f"top5_{pol}.png")
+        plt.close(fig)
 
-    plt.title("Тональность по неделям (с 2024-09-01)")
-    plt.xlabel("Неделя")
-    plt.ylabel("Число статей")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(out_dir / "sentiment_trends.png")
-    plt.close()
-
-def plot_top_sources(df: pd.DataFrame, out_dir: str):
-    """Топ-5 источников для каждого политика (с 2024-09-01)."""
-    out_dir = Path(out_dir)
-    df = df.copy()
-    df['published_at'] = pd.to_datetime(df['published_at'])
-    df = df[df['published_at'] >= START_DATE]
-
-    for pol in df['politician'].unique():
-        counts = df[df['politician'] == pol]['source'].value_counts().head(5)
-        plt.figure(figsize=(6, 4))
-        counts.plot(kind='bar')
-        plt.title(f"Топ-5 источников: {pol}")
-        plt.xlabel("Источник")
-        plt.ylabel("Упоминаний")
-        plt.xticks(rotation=45, ha='right')
-        plt.tight_layout()
-        plt.savefig(out_dir / f"top_sources_{pol.replace(' ','_')}.png")
-        plt.close()
-
-def plot_top20_sources_bar(df: pd.DataFrame, out_dir: str):
-    """Бар-чарт ТОП-20 источников (>100 упоминаний с 2024-09-01)."""
-    out_dir = Path(out_dir)
-    df = df.copy()
-    df['published_at'] = pd.to_datetime(df['published_at'])
-    df = df[df['published_at'] >= START_DATE]
-
-    counts = df['source'].value_counts()
-    top20 = counts[counts > 100].head(20)
-    if top20.empty:
-        print("plot_top20_sources_bar: нет источников с более чем 100 упоминаниями.")
-        return
-
-    plt.figure(figsize=(12, 6))
-    top20.plot(kind='bar')
-    plt.title("ТОП-20 источников (>100 упоминаний с 2024-09-01)")
-    plt.xlabel("Источник")
-    plt.ylabel("Количество упоминаний")
-    plt.xticks(rotation=45, ha='right')
-    plt.tight_layout()
-    plt.savefig(out_dir / "top20_sources.png")
-    plt.close()
-
-def plot_top5_sources_timeseries(df: pd.DataFrame, out_dir: str):
-    """Временные ряды по ТОП-5 источникам (с 2024-09-01)."""
-    out_dir = Path(out_dir)
-    df = df.copy()
-    df['published_at'] = pd.to_datetime(df['published_at'])
-    df = df[df['published_at'] >= START_DATE]
-
-    top5 = df['source'].value_counts().head(5).index
-    ts = (
-        df
-        .groupby(['source','published_at'])
-        .size()
-        .unstack(fill_value=0)
-        .loc[top5]
-        .T
-    )
-
-    plt.figure(figsize=(10, 5))
-    for src in ts.columns:
-        plt.plot(ts.index, ts[src], label=src)
-    plt.title("Временные ряды по ТОП-5 источникам (с 2024-09-01)")
-    plt.xlabel("Дата")
-    plt.ylabel("Упоминаний")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(out_dir / "top5_sources_timeseries.png")
-    plt.close()
+def plot_all(out_dir: Path):
+    """Запускает сразу все графики."""
+    df = load_data()
+    ts = build_timeseries(df)
+    out_dir.mkdir(exist_ok=True, parents=True)
+    (out_dir/"timeseries.csv").write_text(ts.to_csv())
+    plot_overall_timeseries(ts, out_dir)
+    plot_weekly_aggregation(ts, out_dir)
+    plot_monthly_aggregation(ts, out_dir)
+    plot_cumulative(ts, out_dir)
+    plot_sentiment_trends(df, out_dir)
+    plot_top_sources(df, out_dir)
 
