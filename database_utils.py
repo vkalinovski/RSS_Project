@@ -10,7 +10,7 @@ Original file is located at
 import sqlite3
 from pathlib import Path
 from typing import List, Dict
-from .utils import now_utc
+from utils import now_utc
 
 DB_PATH = Path("/content/drive/MyDrive/test/news.db")
 
