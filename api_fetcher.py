@@ -17,12 +17,14 @@ def fetch_newsapi_articles(
     max_items: int = 100,
     language: str = "fr"
 ) -> List[Dict]:
-
-    #Сбор статей из NewsAPI.org по заданным ключевым словам.
-
+    """
+    Сбор статей из NewsAPI.org по ключевым словам.
+    При ошибках (426 Upgrade Required и проч.) возвращает [].
+    """
     api_key = os.getenv("NEWSAPI_KEY")
     if not api_key:
-        raise RuntimeError("NEWSAPI_KEY not set")
+        print(f"[{now_utc()}] Ошибка: не задан NEWSAPI_KEY")
+        return []
     url = "https://newsapi.org/v2/everything"
     articles: List[Dict] = []
     for kw in keywords:
@@ -33,9 +35,15 @@ def fetch_newsapi_articles(
             "sortBy": "publishedAt",
             "apiKey": api_key,
         }
-        resp = requests.get(url, params=params, timeout=15)
-        resp.raise_for_status()
-        data = resp.json().get("articles", [])
+        try:
+            resp = requests.get(url, params=params, timeout=15)
+            if resp.status_code != 200:
+                print(f"[{now_utc()}] NewsAPI status {resp.status_code}: {resp.text}")
+                return []  # выходим сразу, не ломая цикл
+            data = resp.json().get("articles", [])
+        except requests.exceptions.RequestException as e:
+            print(f"[{now_utc()}] NewsAPI request failed: {e}")
+            return []
         for art in data:
             articles.append({
                 "source": art.get("source", {}).get("name"),
@@ -45,5 +53,7 @@ def fetch_newsapi_articles(
                 "url": art.get("url"),
                 "author": art.get("author"),
             })
-    print(f"[{now_utc()}] Слов получено через NewsAPI: {len(articles)}")
+            if len(articles) >= max_items:
+                break
+    print(f"[{now_utc()}] Получено через NewsAPI: {len(articles)} статей")
     return articles
