@@ -1,33 +1,29 @@
-import subprocess, importlib.util
-# удаляем torchvision, чтобы не конфликтовала с torch 2.2
-subprocess.run(["pip","uninstall","-y","torchvision"],stdout=subprocess.DEVNULL)
+import sqlite3, nltk
+from nltk.sentiment import SentimentIntensityAnalyzer
+from pathlib import Path
+from tqdm import tqdm
 
-from transformers import pipeline
-import sqlite3, tqdm, pathlib
-from database import DB_PATH
-
-pipe = pipeline("sentiment-analysis",
-                model="distilbert-base-uncased-finetuned-sst-2-english",
-                device_map="auto")
-
-def fetch():
-    with sqlite3.connect(DB_PATH) as c:
-        return c.execute("SELECT id,title,content FROM news WHERE sentiment IS NULL").fetchall()
-
-def save(upd):
-    with sqlite3.connect(DB_PATH) as c:
-        c.executemany("UPDATE news SET sentiment=? WHERE id=?", upd); c.commit()
+DB = Path(__file__).parent / "news.db"
+nltk.download("vader_lexicon", quiet=True)
+vader = SentimentIntensityAnalyzer()
 
 def main():
-    rows=fetch()
-    if not rows: print("✓ sentiment OK"); return
-    upd=[]
-    for i in tqdm.tqdm(range(0,len(rows),8)):
-        batch=rows[i:i+8]
-        txt=[(t or "")+" "+(c or "") for _,t,c in batch]
-        for (nid,_,_),pred in zip(batch,pipe(txt,truncation=True)):
-            lab=pred["label"].lower()
-            upd.append(("positive" if "pos" in lab else "negative" if "neg" in lab else "neutral",nid))
-    save(upd); print("✓ sentiment updated",len(upd))
+    with sqlite3.connect(DB) as c:
+        rows = c.execute(
+            "SELECT id,title,content FROM news WHERE sentiment IS NULL"
+        ).fetchall()
+        if not rows:
+            print("✓ sentiment: всё готово"); return
 
-if __name__=="__main__": main()
+        upd=[]
+        for _id,title,cont in tqdm(rows, desc="sentiment"):
+            txt = (title or "")+" "+(cont or "")
+            score = vader.polarity_scores(txt)["compound"]
+            sent = "positive" if score>0.2 else "negative" if score<-0.2 else "neutral"
+            upd.append((sent,_id))
+        c.executemany("UPDATE news SET sentiment=? WHERE id=?", upd)
+        c.commit()
+    print("✓ sentiment: обновлено", len(upd))
+
+if __name__=="__main__":
+    main()
