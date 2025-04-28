@@ -7,41 +7,42 @@ Original file is located at
     https://colab.research.google.com/drive/1y_j7EBQXocwJpJVWDYcIBhyr2w0ZG75C
 """
 
+# File: rss_feeds.py
+
 RSS_FEEDS = {
-    "Le Monde Politique":                   "https://www.lemonde.fr/politique/rss_full.xml",
-    "Reuters Politics":                     "https://www.reuters.com/rssFeed/politicsNews",
-    "Politico Europe":                     "https://www.politico.eu/feed/",
-    "France Info Politique":               "https://www.francetvinfo.fr/politique/rss.xml",
-    "Le Figaro Politique":                 "http://www.lefigaro.fr/rss/figaro_politique.xml",
-    "Libération Politique":                "https://www.liberation.fr/rss/politique/",
-    "RFI Français":                        "http://www.rfi.fr/fr/rss",
-    "Le Parisien Politique":               "https://www.leparisien.fr/politique/rss.xml",
-    "L'Express Politique":                 "https://www.lexpress.fr/actualite/monde/europe/politique/rss.xml",
-    "Euronews Politique":                  "https://www.euronews.com/rss?level=theme&name=politics",
-    "France 24 Politics":                  "https://www.france24.com/en/rss/politics.xml",
-    "Les Echos Politique":                 "https://www.lesechos.fr/rss/rss_politique.xml",
-    "Ouest-France Politique":               "https://www.ouest-france.fr/rss/151.xml",
-    "Le Point Politique":                  "https://www.lepoint.fr/politique.rss",
-    "HuffPost FR Politique":               "https://www.huffingtonpost.fr/feeds/verticals/politique/index.xml",
-    "RTL Politique":                       "https://www.rtl.fr/actu/politique/politique.rss",
-    "Europe 1 Politique":                  "https://feeds.feedburner.com/Europe1-Politique",
-    "CNEWS Politique":                     "https://www.cnews.fr/rss/politique",
-    "BFM TV Politique":                    "https://www.bfmtv.com/rss/politique/",
-    "The Guardian Politics":               "https://www.theguardian.com/politics/rss",
-    "BBC Politics":                        "http://feeds.bbci.co.uk/news/politics/rss.xml",
-    "Telegraph Politics":                  "https://www.telegraph.co.uk/politics/rss.xml",
-    "FT UK Politics":                      "http://www.ft.com/rss/world/uk",
-    "Independent Politics":                "https://www.independent.co.uk/news/uk/politics/rss",
-    "Sky News Politics":                   "https://feeds.skynews.com/feeds/rss/politics.xml",
-    "Politico US Politics":                "https://www.politico.com/rss/politics.xml",
-    "Axios Politics":                      "https://www.axios.com/feeds/politics.xml",
-    "CNN Politics":                        "http://rss.cnn.com/rss/cnn_allpolitics.rss",
-    "NPR Politics":                        "https://www.npr.org/rss/rss.php?id=1014",
-    "Al Jazeera Politics":                 "https://www.aljazeera.com/xml/rss/all.xml?topic=politics",
-    "Bloomberg Politics":                  "https://www.bloomberg.com/politics/rss.xml",
-    "NYT Politics":                        "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml",
-    "WP Politics":                         "http://feeds.washingtonpost.com/rss/politics",
-    "Deutsche Welle Politics":             "https://rss.dw.com/xml/rss-en-politics",
-    "La Croix Politique":                  "https://www.la-croix.com/RSS/Sections/06-16/Politique-160.xml",
-    "20 Minutes Politique":                "https://www.20minutes.fr/rss/1225"
+    # Китай
+    "Xinhua English":                  "http://www.xinhuanet.com/english/rss/worldrss.xml",
+    "China Daily":                     "http://www.chinadaily.com.cn/rss/world_rss.xml",
+    "CGTN":                            "https://news.cgtn.com/home/rss/CGTN24hr_EN.xml",
+    "Global Times":                    "https://www.globaltimes.cn/rss/home.xml",
+    "South China Morning Post":        "https://www.scmp.com/rss/91/feed",
+    "People's Daily (EN)":             "http://en.people.cn/rss/politics.xml",
+
+    # Россия
+    "TASS":                            "https://tass.com/rss/v2.xml?departments=politics",
+    "RIA Novosti":                     "https://ria.ru/export/rss2/politics/index.xml",
+    "RBC Politics":                    "https://rssexport.rbc.ru/rbc/logical/footer/news.rss",
+    "Meduza EN":                       "https://meduza.io/rss/en/all",
+
+    # Международные
+    "Reuters World":                   "http://feeds.reuters.com/Reuters/worldNews",
+    "Reuters Politics":                "http://feeds.reuters.com/Reuters/PoliticsNews",
+    "AP Politics":                     "https://apnews.com/hub/politics?outputType=xml",
+    "BBC World":                       "http://feeds.bbci.co.uk/news/world/rss.xml",
+    "CNN World":                       "http://rss.cnn.com/rss/edition_world.rss",
+    "NYT Politics":                    "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml",
+    "WP Politics":                     "http://feeds.washingtonpost.com/rss/politics",
+    "Fox News Politics":               "http://feeds.foxnews.com/foxnews/politics",
+    "Politico":                        "https://www.politico.com/rss/politics.xml",
+    "Axios Politics":                  "https://www.axios.com/feeds/politics.xml",
+    "Bloomberg Politics":              "https://www.bloomberg.com/politics/rss.xml",
+    "FT Politics":                     "http://www.ft.com/rss/world/uk",
+    "Guardian Politics":               "https://www.theguardian.com/politics/rss",
+    "The Hill":                        "https://thehill.com/rss/syndicator/19110",
+    "NPR Politics":                    "https://www.npr.org/rss/rss.php?id=1014",
+    "Politico Europe":                 "https://www.politico.eu/feed/",
+    "Deutsche Welle":                  "https://rss.dw.com/xml/rss-en-politics",
+    "France24 Politics":               "https://www.france24.com/en/rss/politics.xml",
+    "Al Jazeera":                      "https://www.aljazeera.com/xml/rss/all.xml?language=en",
+    "AFP Top News":                    "https://www.afp.com/rss.xml?category=world"
 }
