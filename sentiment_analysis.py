@@ -7,11 +7,13 @@ Original file is located at
     https://colab.research.google.com/drive/1y_j7EBQXocwJpJVWDYcIBhyr2w0ZG75C
 """
 
+# File: sentiment_analysis.py
+import os
 import itertools
 from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 from typing import List, Dict
 
-# Инициализация pipeline с автоматическим усечением до max_length=512
+# Инициализация pipeline с усечением до max_length=512
 _tokenizer = AutoTokenizer.from_pretrained(
     "distilbert-base-uncased-finetuned-sst-2-english"
 )
@@ -24,7 +26,6 @@ _sentiment = pipeline(
     tokenizer=_tokenizer,
     device=0 if "CUDA_VISIBLE_DEVICES" in os.environ else -1,
 )
-
 
 def analyze_sentiment(
     articles: List[Dict]
@@ -39,17 +40,15 @@ def analyze_sentiment(
         texts.append(text)
 
     results = []
-    for chunk_start in range(0, len(texts), 8):  # обрабатываем пакетами по 8
+    for chunk_start in range(0, len(texts), 8):
         batch = texts[chunk_start:chunk_start+8]
         try:
-            # передаём параметры усечения в вызов pipeline
             res = _sentiment(batch, truncation=True, max_length=512)
         except Exception as e:
             print(f"Error in sentiment pipeline: {e}")
             res = [{'label': None, 'score': 0.0} for _ in batch]
         results.extend(res)
 
-    # Обновляем исходные словари
     out_articles = []
     for art, r in zip(articles, results):
         art_copy = art.copy()
@@ -57,3 +56,4 @@ def analyze_sentiment(
         art_copy['score'] = r.get('score')
         out_articles.append(art_copy)
     return out_articles
+
