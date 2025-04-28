@@ -12,7 +12,7 @@ import sys
 import subprocess
 
 # ----------------------------------------------------------------------------
-# 0️⃣ Автоматическое клонирование репозитория (если нет локально)
+# 0️⃣ Автоматическое клонирование репозитория (если не загружен локально)
 # ----------------------------------------------------------------------------
 REPO_URL = "https://github.com/vkalinovski/RSS_Project.git"
 LOCAL_DIR = "RSS_Project"
@@ -20,11 +20,11 @@ if not os.path.isdir(LOCAL_DIR):
     print(f"Cloning repository from {REPO_URL}...")
     subprocess.run(["git", "clone", REPO_URL, LOCAL_DIR], check=True)
 
-# Добавляем папку с модулями в PYTHONPATH
+# Добавляем папку с клонированными модулями в PYTHONPATH
 sys.path.insert(0, os.path.abspath(LOCAL_DIR))
 
 # ----------------------------------------------------------------------------
-# 1️⃣ Импорт всех необходимых модулей
+# 1️⃣ Импорт модулей проекта
 # ----------------------------------------------------------------------------
 from rss_feeds import RSS_FEEDS
 from api_fetcher import fetch_newsapi_articles
@@ -44,40 +44,45 @@ import pandas as pd
 # 2️⃣ Конфигурация
 # ----------------------------------------------------------------------------
 KEYWORDS  = ["Emmanuel Macron", "Marine Le Pen"]
-MAX_ITEMS = 100   # бесплатный тариф NewsAPI ограничен 100 статьями
-OUT_DIR   = "/content/gdrive/MyDrive/test"  # папка на вашем Google Drive
+# Бесплатный тариф NewsAPI отдаёт не более 100 статей за запрос
+MAX_ITEMS = 100
+# Папка на Google Drive для всех выходных файлов
+OUT_DIR   = "/content/gdrive/MyDrive/test"
 
 # ----------------------------------------------------------------------------
-# 3️⃣ Основная функция: сбор → анализ → сохранение
+# 3️⃣ Основная логика: сбор → фильтрация → сохранение → анализ → визуализация
 # ----------------------------------------------------------------------------
 def one_cycle():
     print(f"[{now_utc()}] Запуск цикла: сбор → анализ → сохранение")
 
-    # 1) Создаём или проверяем базу данных
+    # 1) Инициализация (или проверка) БД
     create_database()
 
-    # 2) Сбор новостей из RSS и NewsAPI
+    # 2) Сбор статей
     rss_news = fetch_rss_articles(MAX_ITEMS)
     api_news = fetch_newsapi_articles(KEYWORDS, MAX_ITEMS)
     all_news = rss_news + api_news
 
     # 3) Фильтрация и категоризация по политическим деятелям
-    macron = [
-        {**n, "politician": "Emmanuel Macron"}
-        for n in all_news
-        if "Emmanuel Macron" in (n.get("content") or "")
-    ]
-    lepen = [
-        {**n, "politician": "Marine Le Pen"}
-        for n in all_news
-        if "Marine Le Pen" in (n.get("content") or "")
-    ]
+    macron = []
+    lepen  = []
+    for art in all_news:
+        text = (art.get("title") or "") + " " + (art.get("content") or "")
+        if "Emmanuel Macron" in text:
+            macron.append({**art, "politician": "Emmanuel Macron"})
+        if "Marine Le Pen" in text:
+            lepen.append({**art, "politician": "Marine Le Pen"})
+
+    # Если ничего не найдено — выходим
+    if not macron and not lepen:
+        print(f"[{now_utc()}] Не найдено ни одной статьи по ключевым словам.")
+        return
 
     # 4) Сохранение в SQLite
     save_news_to_db(macron, "Emmanuel Macron")
-    save_news_to_db(lepen, "Marine Le Pen")
+    save_news_to_db(lepen,  "Marine Le Pen")
 
-    # 5) Сентимент-анализ
+    # 5) Тональный анализ
     combined = macron + lepen
     sentimented = analyze_sentiment(combined)
 
@@ -87,7 +92,7 @@ def one_cycle():
     os.makedirs(OUT_DIR, exist_ok=True)
     ts.to_csv(os.path.join(OUT_DIR, "timeseries.csv"), index=True)
 
-    # 7) Генерация 10 различных графиков
+    # 7) Генерация 10 графиков глубокого анализа
     plot1_timeseries(ts, OUT_DIR)
     plot2_bar_total(ts, OUT_DIR)
     plot3_rolling(ts, OUT_DIR)
@@ -99,7 +104,7 @@ def one_cycle():
     plot9_ratio(ts, OUT_DIR)
     plot10_correlation(ts, OUT_DIR)
 
-    print(f"[{now_utc()}] Цикл завершён. Результаты сохранены в {OUT_DIR}")
+    print(f"[{now_utc()}] Цикл завершён. Все результаты сохранены в {OUT_DIR}")
 
 # ----------------------------------------------------------------------------
 # 4️⃣ Точка входа
