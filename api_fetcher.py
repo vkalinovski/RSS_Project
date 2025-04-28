@@ -1,78 +1,43 @@
-import os, requests
+import os, requests, json
 from datetime import datetime, timedelta
-from pathlib import Path
 from dotenv import load_dotenv
-from database import create_database, categorize_news, save_news_to_db
+from database import categorize, save_news_to_db
 
 load_dotenv()
-NEWSAPI_KEY = os.getenv("NEWSAPI_KEY")
-DB_PATH = Path(__file__).parent / "news.db"
+KEY = os.getenv("NEWSAPI_KEY")
 
-POLITICIANS = {
-    "Trump": "Trump",
-    "Putin": "Putin",
-    "Xi":    '"Xi Jinping"',
-}
+POLITICIANS = {"Trump":"Trump","Putin":"Putin","Xi":'"Xi Jinping"'}
+URL  = "https://newsapi.org/v2/everything"
+HEAD = {"Authorization": KEY}
+DATE_FROM = (datetime.utcnow()-timedelta(days=30)).strftime("%Y-%m-%d")
+DATE_TO   =  datetime.utcnow().strftime("%Y-%m-%d")
 
-PAGE_SIZE = 100
-MAX_PAGES = 5   # 5 × 100 = 500
+def fetch(q):
+    params = dict(q=q,from_param=DATE_FROM,to=DATE_TO,
+                  language="en",sortBy="publishedAt",pageSize=100,page=1)
+    arts=[]
+    for p in range(1,6):
+        params["page"]=p
+        r=requests.get(URL,headers=HEAD,params=params,timeout=30)
+        if r.status_code!=200: break
+        chunk=r.json().get("articles",[])
+        if not chunk: break
+        arts+=chunk
+        if len(chunk)<100: break
+    return [{"source":a["source"],"title":a["title"],"url":a["url"],
+             "publishedAt":a["publishedAt"],
+             "content":a.get("content") or a.get("description",""),
+             "author":a.get("author")} for a in arts]
 
-def fetch_news(query: str) -> list[dict]:
-    url = "https://newsapi.org/v2/everything"
-    headers = {"Authorization": NEWSAPI_KEY}
-    date_from = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%d")
-    date_to   = datetime.utcnow().strftime("%Y-%m-%d")
+def main():
+    all=[]
+    for name,q in POLITICIANS.items():
+        rows=fetch(q); print(name,len(rows))
+        all+=rows
+    trump,putin,xi,mixed=categorize(all)
+    save_news_to_db(trump,"Trump")
+    save_news_to_db(putin,"Putin")
+    save_news_to_db(xi,"Xi")
+    save_news_to_db(mixed,"Mixed")
 
-    params = dict(
-        q=query,
-        from_param=date_from,
-        to=date_to,
-        language="en",
-        sortBy="publishedAt",
-        pageSize=PAGE_SIZE,
-    )
-
-    arts = []
-    for page in range(1, MAX_PAGES + 1):
-        params["page"] = page
-        r = requests.get(url, headers=headers, params=params, timeout=30)
-        if r.status_code != 200:
-            print("⚠️  NewsAPI error:", r.json())
-            break
-        chunk = r.json().get("articles", [])
-        if not chunk:
-            break
-        arts.extend(chunk)
-        if len(chunk) < PAGE_SIZE:
-            break
-    return arts
-
-def to_std(a: dict) -> dict:
-    return {
-        "source": {"name": a["source"]["name"]},
-        "title": a.get("title"),
-        "url": a.get("url"),
-        "publishedAt": a.get("publishedAt"),
-        "content": a.get("content") or a.get("description", ""),
-        "author": a.get("author"),
-    }
-
-def update_news():
-    create_database()
-    all_rows = []
-    for name, q in POLITICIANS.items():
-        raw = fetch_news(q)
-        rows = [to_std(a) for a in raw]
-        print(f"{name}: {len(rows)} статей")
-        all_rows.extend(rows)
-
-    trump, putin, xi, mixed = categorize_news(all_rows)
-    save_news_to_db(trump, "Trump")
-    save_news_to_db(putin, "Putin")
-    save_news_to_db(xi,    "Xi")
-    save_news_to_db(mixed, "Mixed")
-
-    print("✅  База news.db обновлена")
-
-if __name__ == "__main__":
-    update_news()
+if __name__=="__main__": main()
