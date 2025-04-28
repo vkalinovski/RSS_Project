@@ -10,7 +10,7 @@ Original file is located at
 import os
 import requests
 from typing import List, Dict
-from .utils import normalise_date, now_utc
+from utils import normalise_date, now_utc
 
 def fetch_newsapi_articles(
     keywords: List[str],
