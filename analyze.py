@@ -7,168 +7,90 @@ Original file is located at
     https://colab.research.google.com/drive/1y_j7EBQXocwJpJVWDYcIBhyr2w0ZG75C
 """
 
+# File: analyze.py
 import pandas as pd
 import matplotlib.pyplot as plt
 from typing import List, Dict
 
-
 def build_timeseries(df: pd.DataFrame) -> pd.DataFrame:
-    # Переименовываем, если есть столбец published
+    # Поддерживаем оба поля: published или published_at
     if "published" in df.columns and "published_at" not in df.columns:
         df = df.rename(columns={"published": "published_at"})
-    # Оставляем только YYYY-MM-DD
+    # Отсекаем время, оставляем дату
     df["published_at"] = pd.to_datetime(df["published_at"]).dt.strftime("%Y-%m-%d")
-    ts = (
-        df.groupby(["published_at", "politician"])
-          .size()
-          .unstack(fill_value=0)
-    )
+    ts = df.groupby(["published_at", "politician"]).size().unstack(fill_value=0)
     ts.index = pd.to_datetime(ts.index)
     return ts.sort_index()
 
-
-# ---------- 10 ВИДОВ ГРАФИКОВ ----------
-
 def plot1_timeseries(ts: pd.DataFrame, out_dir: str):
-    """Линейный график ежедневных упоминаний каждого политика."""
     plt.figure(figsize=(10,5))
     for col in ts.columns:
         plt.plot(ts.index, ts[col], label=col)
-    plt.title("Ежедневные упоминания Macron vs Le Pen")
-    plt.xlabel("Дата")
-    plt.ylabel("Количество упоминаний")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(f"{out_dir}/plot1_timeseries.png")
-    plt.close()
-
+    plt.title("Ежедневные упоминания")
+    plt.xlabel("Дата"); plt.ylabel("Частота")
+    plt.legend(); plt.tight_layout()
+    plt.savefig(f"{out_dir}/plot1_timeseries.png"); plt.close()
 
 def plot2_bar_total(ts: pd.DataFrame, out_dir: str):
-    """Столбчатая диаграмма суммарных упоминаний за год."""
     totals = ts.sum()
-    plt.figure(figsize=(8,5))
-    totals.plot(kind='bar')
-    plt.title("Суммарные упоминания за последний год")
-    plt.xlabel("Политический субъект")
-    plt.ylabel("Всего упоминаний")
-    plt.tight_layout()
-    plt.savefig(f"{out_dir}/plot2_bar_total.png")
-    plt.close()
-
+    plt.figure(figsize=(8,5)); totals.plot(kind='bar')
+    plt.title("Суммарные упоминания с 2024-01-01"); plt.xlabel("Политик"); plt.ylabel("Всего")
+    plt.tight_layout(); plt.savefig(f"{out_dir}/plot2_bar_total.png"); plt.close()
 
 def plot3_rolling(ts: pd.DataFrame, out_dir: str):
-    """Скользящее среднее (7 дней) упоминаний."""
-    rolling = ts.rolling(window=7, min_periods=1).mean()
+    mov = ts.rolling(7, min_periods=1).mean()
     plt.figure(figsize=(10,5))
-    for col in rolling.columns:
-        plt.plot(rolling.index, rolling[col], label=col)
-    plt.title("7-дневное скользящее среднее упоминаний")
-    plt.xlabel("Дата")
-    plt.ylabel("Среднее значение")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(f"{out_dir}/plot3_rolling.png")
-    plt.close()
-
+    for col in mov.columns:
+        plt.plot(mov.index, mov[col], label=col)
+    plt.title("7-дневное скользящее среднее"); plt.xlabel("Дата"); plt.ylabel("Среднее")
+    plt.legend(); plt.tight_layout(); plt.savefig(f"{out_dir}/plot3_rolling.png"); plt.close()
 
 def plot4_monthly(ts: pd.DataFrame, out_dir: str):
-    """Месячная агрегация упоминаний."""
-    monthly = ts.resample('M').sum()
-    plt.figure(figsize=(10,5))
-    monthly.plot(kind='bar')
-    plt.title("Месячные упоминания")
-    plt.xlabel("Месяц")
-    plt.ylabel("Количество упоминаний")
-    plt.tight_layout()
-    plt.savefig(f"{out_dir}/plot4_monthly.png")
-    plt.close()
-
+    m = ts.resample('M').sum()
+    plt.figure(figsize=(10,5)); m.plot(kind='bar')
+    plt.title("Месячные упоминания"); plt.xlabel("Месяц"); plt.ylabel("Всего")
+    plt.tight_layout(); plt.savefig(f"{out_dir}/plot4_monthly.png"); plt.close()
 
 def plot5_pie_sources(df: pd.DataFrame, out_dir: str):
-    """Круговая диаграмма распределения упоминаний по источникам."""
-    src_counts = df['source'].value_counts().head(10)
-    plt.figure(figsize=(6,6))
-    src_counts.plot(kind='pie', autopct='%1.1f%%', startangle=90)
-    plt.title("Топ-10 источников")
-    plt.ylabel("")
-    plt.tight_layout()
-    plt.savefig(f"{out_dir}/plot5_pie_sources.png")
-    plt.close()
-
+    top = df['source'].value_counts().head(10)
+    plt.figure(figsize=(6,6)); top.plot(kind='pie', autopct='%1.1f%%', startangle=90)
+    plt.title("Топ-10 источников"); plt.ylabel("")
+    plt.tight_layout(); plt.savefig(f"{out_dir}/plot5_pie_sources.png"); plt.close()
 
 def plot6_weekday(ts: pd.DataFrame, out_dir: str):
-    """Распределение упоминаний по дням недели."""
-    weekdays = ts.copy()
-    weekdays['weekday'] = weekdays.index.day_name()
-    wd_counts = weekdays.groupby('weekday').sum().reindex([
+    wd = ts.copy()
+    wd['weekday'] = wd.index.day_name()
+    cnt = wd.groupby('weekday').sum().reindex([
         'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'
     ]).sum(axis=1)
-    plt.figure(figsize=(8,5))
-    wd_counts.plot(kind='bar')
-    plt.title("Упоминания по дням недели")
-    plt.xlabel("День недели")
-    plt.ylabel("Количество упоминаний")
-    plt.tight_layout()
-    plt.savefig(f"{out_dir}/plot6_weekday.png")
-    plt.close()
-
+    plt.figure(figsize=(8,5)); cnt.plot(kind='bar')
+    plt.title("Упоминания по дням недели"); plt.xlabel("День"); plt.ylabel("Всего")
+    plt.tight_layout(); plt.savefig(f"{out_dir}/plot6_weekday.png"); plt.close()
 
 def plot7_top_days(ts: pd.DataFrame, out_dir: str):
-    """Топ-10 дней по суммарным упоминаниям."""
-    top_days = ts.sum(axis=1).sort_values(ascending=False).head(10)
-    plt.figure(figsize=(8,5))
-    top_days.plot(kind='bar')
-    plt.title("Топ-10 самых активных дней")
-    plt.xlabel("Дата")
-    plt.ylabel("Всего упоминаний")
-    plt.tight_layout()
-    plt.savefig(f"{out_dir}/plot7_top_days.png")
-    plt.close()
-
+    top = ts.sum(axis=1).sort_values(ascending=False).head(10)
+    plt.figure(figsize=(8,5)); top.plot(kind='bar')
+    plt.title("Топ-10 самых активных дней"); plt.xlabel("Дата"); plt.ylabel("Всего")
+    plt.tight_layout(); plt.savefig(f"{out_dir}/plot7_top_days.png"); plt.close()
 
 def plot8_cumulative(ts: pd.DataFrame, out_dir: str):
-    """Накопительный график упоминаний за год."""
     cum = ts.cumsum()
     plt.figure(figsize=(10,5))
     for col in cum.columns:
         plt.plot(cum.index, cum[col], label=col)
-    plt.title("Накопительная кривая упоминаний")
-    plt.xlabel("Дата")
-    plt.ylabel("Кумулятивное количество")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(f"{out_dir}/plot8_cumulative.png")
-    plt.close()
+    plt.title("Кумулятивное число упоминаний"); plt.xlabel("Дата"); plt.ylabel("Кумулятивно")
+    plt.legend(); plt.tight_layout(); plt.savefig(f"{out_dir}/plot8_cumulative.png"); plt.close()
 
+def plot9_sentiment_dist(df: pd.DataFrame, out_dir: str):
+    sent = df.groupby(['politician','sentiment']).size().unstack(fill_value=0)
+    plt.figure(figsize=(8,5)); sent.plot(kind='bar')
+    plt.title("Распределение тональности"); plt.xlabel("Политик"); plt.ylabel("Статей")
+    plt.tight_layout(); plt.savefig(f"{out_dir}/plot9_sentiment_distribution.png"); plt.close()
 
-def plot9_ratio(ts: pd.DataFrame, out_dir: str):
-    """Соотношение упоминаний Macron к Le Pen."""
-    keys = ts.columns.tolist()
-    if len(keys) >= 2:
-        # вычисляем отношение, избегаем деления на ноль
-        ratio = ts[keys[0]] / ts[keys[1]].replace(0, pd.NA)
-        # убираем пропущенные значения перед рисованием
-        ratio = ratio.dropna()
-        plt.figure(figsize=(10,5))
-        plt.plot(ratio.index, ratio, label=f"{keys[0]}/{keys[1]}")
-        plt.title(f"Соотношение упоминаний {keys[0]} к {keys[1]}")
-        plt.xlabel("Дата")
-        plt.ylabel("Соотношение")
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(f"{out_dir}/plot9_ratio.png")
-        plt.close()
-
-
-def plot10_correlation(ts: pd.DataFrame, out_dir: str):
-    """Корреляционная матрица между рядами упоминаний."""
-    corr = ts.corr()
-    plt.figure(figsize=(6,6))
-    im = plt.imshow(corr, vmin=-1, vmax=1)
-    plt.colorbar(im, label='Корреляция')
-    plt.xticks(range(len(corr)), corr.columns, rotation=45)
-    plt.yticks(range(len(corr)), corr.columns)
-    plt.title("Корреляция временных рядов")
-    plt.tight_layout()
-    plt.savefig(f"{out_dir}/plot10_correlation.png")
-    plt.close()
+def plot10_top_sources_per_politician(df: pd.DataFrame, out_dir: str):
+    plt.figure(figsize=(10,6))
+    for pol in df['politician'].unique():
+        top = df[df['politician']==pol]['source'].value_counts().head(5)
+        top.plot(kind='bar', alpha=0.7, label=pol)
+    plt.title("Топ-5 источников по политику"); plt.xlabel("Источник"); plt.ylabel("Упоминаний")
+    plt.legend(); plt.tight_layout(); plt.savefig(f"{out_dir}/plot10_top_sources.png"); plt.close()
