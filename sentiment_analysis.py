@@ -1,6 +1,7 @@
 """
-Определяет тональность новостей и записывает в колонку sentiment.
-Приводит текст к 512 символам, чтобы избежать ошибки размера тензора.
+Оценивает тональность статей в news.db.
+— pipeline вызывается с truncation=True, поэтому >512 токенов автоматически обрежутся;
+— батч = 8, что ускоряет работу и экономит память.
 """
 
 import sqlite3
@@ -9,60 +10,54 @@ from transformers import pipeline
 from tqdm import tqdm
 
 DB_PATH = Path(__file__).parent / "news.db"
-MAX_LEN = 512         # не больше 512 символов
-BATCH = 8             # пакет для инференса
+BATCH = 8
 
 sentiment_analyzer = pipeline(
     "sentiment-analysis",
-    model="distilbert/distilbert-base-uncased-finetuned-sst-2-english",
+    model="distilbert-base-uncased-finetuned-sst-2-english",
+    tokenizer="distilbert-base-uncased-finetuned-sst-2-english",
     device_map="auto",
 )
 
-def load_unprocessed():
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("SELECT id, title, content FROM news WHERE sentiment IS NULL")
-    rows = cur.fetchall()
-    conn.close()
-    return rows
+def fetch_unprocessed():
+    with sqlite3.connect(DB_PATH) as conn:
+        return conn.execute(
+            "SELECT id, title, content FROM news WHERE sentiment IS NULL"
+        ).fetchall()
 
-def update_sentiment(rows):
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
+def save_sentiments(updates):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.executemany(
+            "UPDATE news SET sentiment = ? WHERE id = ?", updates
+        )
+        conn.commit()
 
+def main():
+    rows = fetch_unprocessed()
+    if not rows:
+        print("✅  Все новости уже размечены")
+        return
+
+    print(f"📊  Нужно разметить {len(rows)} статей")
+    updates = []
     for i in tqdm(range(0, len(rows), BATCH), desc="Sentiment"):
         batch = rows[i : i + BATCH]
         texts = [
-            ((t or "") + " " + (c or ""))[:MAX_LEN]  # обрезаем
-            for _, t, c in batch
+            ((t or "") + " " + (c or "")) for _, t, c in batch
         ]
-        preds = sentiment_analyzer(texts)
+        preds = sentiment_analyzer(texts, truncation=True)  # ← ключевой момент!
 
         for (news_id, _, _), pred in zip(batch, preds):
             label = pred["label"].lower()
             sentiment = (
-                "positive"
-                if "positive" in label
-                else "negative"
-                if "negative" in label
-                else "neutral"
+                "positive" if "positive" in label else
+                "negative" if "negative" in label else
+                "neutral"
             )
-            cur.execute(
-                "UPDATE news SET sentiment = ? WHERE id = ?",
-                (sentiment, news_id),
-            )
-        conn.commit()
-    conn.close()
+            updates.append((sentiment, news_id))
 
-def main():
-    rows = load_unprocessed()
-    if not rows:
-        print("✅  Все новости уже имеют тональность")
-        return
-    print(f"📊  Обработаем {len(rows)} статей")
-    update_sentiment(rows)
-    print("✅  Тональность сохранена")
+    save_sentiments(updates)
+    print("✅  Готово! Обновлено:", len(updates))
 
 if __name__ == "__main__":
     main()
-
