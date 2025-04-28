@@ -1,79 +1,68 @@
 """
-Собирает новости из набора RSS-лент, отфильтровывает статьи,
-где упоминаются Trump / Putin / Xi Jinping, классифицирует и
-сохраняет в базу news.db.
-
-Все выходные файлы (news.db, graphs, csv) хранятся в
-/content/drive/MyDrive/test/RSS_Project – путь задаётся в Colab-ячейке.
+Парсит все ленты из файла rss_feeds.py,
+выбирает статьи, где упоминаются Trump / Putin / Xi Jinping,
+определяет, кому принадлежит статья, и сохраняет её в news.db.
 """
 
 import feedparser
 from datetime import datetime
 from pathlib import Path
+
+# локальные модули проекта
 from database import create, categorize, save
+from rss_feeds import RSS_FEEDS            # ← берем большой список отсюда
 
-# ────────── RSS-источники ──────────
-FEEDS = {
-    "NYT Politics":    "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml",
-    "BBC Politics":    "http://feeds.bbci.co.uk/news/politics/rss.xml",
-    "Politico":        "http://www.politico.com/rss/Top10Blogs.xml",
-    "Washington Post": "http://feeds.washingtonpost.com/rss/politics",
-    "Fox News":        "http://feeds.foxnews.com/foxnews/latest?format=xml",
-    "РИА Политика":    "https://ria.ru/export/rss2/politics/index.xml",
-    "ТАСС":            "https://tass.ru/rss/v2.xml",
-    "RT English":      "https://www.rt.com/rss/news/",
-    "Xinhua":          "http://www.xinhuanet.com/english/rss/worldrss.xml",
-    "China Daily":     "https://www.chinadaily.com.cn/rss/china_rss.xml",
-}
-
-# ────────── helpers ──────────
-def iso8601(dt: datetime) -> str:
-    """Дата → ISO 8601 с суффиксом Z"""
+# ───────────────────────── helpers ─────────────────────────
+def to_iso(dt: datetime) -> str:
+    """2025-04-28T12:34:56Z"""
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
+
 def parse_feed(url: str, source: str) -> list[dict]:
-    """Парсит одну RSS-ленту и возвращает список черновых статей."""
+    """Читает RSS-ленту, возвращает список «черновых» статей."""
     feed = feedparser.parse(url)
-    items = []
+    arts = []
+
     for e in feed.entries:
         if not getattr(e, "published_parsed", None):
             continue  # без даты пропускаем
 
         dt = datetime(*e.published_parsed[:6])
-        items.append(
+        arts.append(
             dict(
-                source      = source,
-                title       = e.get("title", "").strip(),
-                url         = e.get("link", "").strip(),
-                publishedAt = iso8601(dt),
-                content     = (
+                source=source,
+                title=e.get("title", "").strip(),
+                url=e.get("link", "").strip(),
+                publishedAt=to_iso(dt),
+                content=(
                     e.get("content", [{}])[0].get("value")
                     or e.get("summary", "")
                 ).strip(),
             )
         )
-    return items
+    return arts
 
-# ────────── основной процесс ──────────
+
+# ───────────────────────── main routine ─────────────────────────
 def main():
-    create()                   # гарантируем, что таблица news есть
-    raw_articles = []
+    create()                       # таблица news гарантированно есть
+    raw = []
 
-    for name, url in FEEDS.items():
+    for name, url in RSS_FEEDS.items():
         print("RSS:", name)
-        raw_articles.extend(parse_feed(url, name))
+        raw.extend(parse_feed(url, name))
 
-    # классифицируем на 4 корзины
-    buckets = categorize(raw_articles)
+    # раскладываем на 4 корзины
+    buckets = categorize(raw)
 
-    # для каждой корзины дописываем поле politician и сохраняем
+    # добавляем поле politician и сохраняем
     for politician, bunch in buckets.items():
         for art in bunch:
             art["politician"] = politician
         save(bunch)
 
-    print("✅  RSS обработан и сохранён")
+    print("✅  RSS-ленты обработаны и занесены в news.db")
+
 
 if __name__ == "__main__":
     main()
-
