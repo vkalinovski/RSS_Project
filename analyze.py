@@ -13,10 +13,16 @@ from typing import List, Dict
 
 
 def build_timeseries(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Возвращает ts: индекс = дата, колонки = ['Emmanuel Macron','Marine Le Pen'], значения = counts
-    """
-    ts = df.groupby(['published_at','politician']).size().unstack(fill_value=0)
+    # Переименовываем, если есть столбец published
+    if "published" in df.columns and "published_at" not in df.columns:
+        df = df.rename(columns={"published": "published_at"})
+    # Оставляем только YYYY-MM-DD
+    df["published_at"] = pd.to_datetime(df["published_at"]).dt.strftime("%Y-%m-%d")
+    ts = (
+        df.groupby(["published_at", "politician"])
+          .size()
+          .unstack(fill_value=0)
+    )
     ts.index = pd.to_datetime(ts.index)
     return ts.sort_index()
 
