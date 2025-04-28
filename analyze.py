@@ -1,5 +1,6 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from pathlib import Path
 
 # Анализ с сентября 2024
@@ -7,19 +8,57 @@ START_DATE = pd.to_datetime("2024-09-01")
 
 def build_timeseries(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    df['published_at'] = pd.to_datetime(df['published_at'])
+    df['published_at'] = pd.to_datetime(df['published_at'], errors='coerce').dt.normalize()
+    df = df.dropna(subset=['published_at'])
     df = df[df['published_at'] >= START_DATE]
+    
+    # Создаем полный временной диапазон
+    date_range = pd.date_range(start=START_DATE, end=df['published_at'].max(), freq='D')
     ts = df.groupby(['published_at','politician']).size().unstack(fill_value=0)
-    ts.index = pd.to_datetime(ts.index)
+    ts = ts.reindex(date_range, fill_value=0)  # Добавляем пропущенные даты
+    
     return ts.sort_index()
 
 def plot_overall_timeseries(ts: pd.DataFrame, out_dir: str):
-    out_dir = Path(out_dir); ts = ts[ts.index>=START_DATE]
-    plt.figure(figsize=(10,5))
+    out_dir = Path(out_dir)
+    plt.figure(figsize=(12,6))
+    ax = plt.gca()
+    
     for col in ts.columns:
-        plt.plot(ts.index, ts[col], label=col)
-    plt.title("Ежедневные упоминания (с 2024-09-01)"); plt.xlabel("Дата"); plt.ylabel("Частота")
-    plt.legend(); plt.tight_layout(); plt.savefig(out_dir/"overall_daily.png"); plt.close()
+        ax.plot(ts.index, ts[col], label=col, linewidth=1.5)
+    
+    # Форматирование дат
+    ax.xaxis.set_major_locator(mdates.MonthLocator())
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    plt.xticks(rotation=45, ha='right')
+    
+    plt.title("Ежедневные упоминания (с 2024-09-01)")
+    plt.xlabel("Дата")
+    plt.ylabel("Частота")
+    plt.grid(True, alpha=0.3)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.savefig(out_dir/"overall_daily.png", bbox_inches='tight')
+    plt.close()
+
+
+def plot_monthly_aggregation(ts: pd.DataFrame, out_dir: str):
+    out_dir = Path(out_dir)
+    monthly = ts.resample('MS').sum()
+    
+    plt.figure(figsize=(10,6))
+    ax = monthly.plot(kind='bar')
+    
+    # Форматирование подписей месяцев
+    ax.set_xticklabels([x.strftime('%b\n%Y') for x in monthly.index])
+    
+    plt.title("Месячные упоминания (с 2024-09-01)")
+    plt.xlabel("Месяц")
+    plt.ylabel("Сумма")
+    plt.tight_layout()
+    plt.savefig(out_dir/"monthly.png")
+    plt.close()
+
 
 def plot_weekly_aggregation(ts: pd.DataFrame, out_dir: str):
     out_dir = Path(out_dir); ts = ts[ts.index>=START_DATE]
