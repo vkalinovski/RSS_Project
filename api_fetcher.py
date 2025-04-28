@@ -1,76 +1,108 @@
-import requests
-from datetime import datetime, timedelta
 import os
-from database import get_last_saved_date, categorize_news, save_news_to_db
+from datetime import datetime, timedelta
+from pathlib import Path
 
-# Ваш ключ NewsAPI
-NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "3564e31ed0dc4e379fb768bb30e6b865")
-BASE_URL = "https://newsapi.org/v2/everything"
+import requests
+from dotenv import load_dotenv
 
-def fetch_from_newsapi(query, from_date, to_date, page_size=100):
-    """Скачивает до 500 статей (5 страниц по 100) для одного запроса."""
-    all_articles = []
-    for page in range(1, 6):
-        params = {
-            "apiKey": NEWSAPI_KEY,
-            "q": query,
-            "from": from_date,
-            "to": to_date,
-            "language": "en",
-            "sortBy": "publishedAt",
-            "pageSize": page_size,
-            "page": page
-        }
-        resp = requests.get(BASE_URL, params=params)
+from database import (
+    categorize_news,
+    save_news_to_db,
+    get_last_saved_date,
+)
+
+load_dotenv()
+
+MEDIASTACK_KEY = os.getenv("MEDIASTACK_KEY")
+db_path = Path(__file__).parent / "news.db"
+
+# лимит бесплатного тарифа
+MAX_REQUESTS = 100
+request_count = 0
+
+
+def fetch_news_from_mediastack(query: str) -> list[dict]:
+    """Получает все новости MediaStack по ключевому слову/фразе."""
+    global request_count
+
+    start_date = get_last_saved_date()
+    if not start_date:
+        start_date = (datetime.today() - timedelta(days=240)).strftime("%Y-%m-%d")
+
+    end_date = datetime.today().strftime("%Y-%m-%d")
+    print(f"MediaStack: {query!r}  {start_date} → {end_date}")
+
+    params = {
+        "access_key": MEDIASTACK_KEY,
+        "keywords": query,
+        "countries": "us,gb,ru,cn",
+        "languages": "en,ru",
+        "date": f"{start_date},{end_date}",
+        "limit": 100,
+        "offset": 0,
+    }
+
+    url = "http://api.mediastack.com/v1/news"
+    articles = []
+
+    while request_count < MAX_REQUESTS:
+        resp = requests.get(url, params=params)
+        request_count += 1
+
         if resp.status_code != 200:
-            print("NewsAPI Error", resp.json())
+            print("⚠️", resp.json())
             break
-        data = resp.json().get("articles", [])
-        if not data:
-            break
-        all_articles.extend(data)
-        if len(data) < page_size:
-            break
-    print(f"  → Найдено {len(all_articles)} статей по «{query}»")
-    return all_articles
 
-def convert_to_standard(articles):
-    """Приводит формат NewsAPI к единому виду для DB."""
-    out = []
-    for a in articles:
-        out.append({
-            "source": a.get("source"),
-            "title": a.get("title"),
-            "url": a.get("url"),
-            "publishedAt": a.get("publishedAt"),
-            "content": a.get("content") or a.get("description") or "",
-            "author": a.get("author") or "Unknown"
-        })
-    return out
+        data = resp.json()
+        if not data.get("data"):
+            break
 
+        articles.extend(data["data"])
+        params["offset"] += 100
+
+    return articles
+
+
+def convert_mediastack_to_standard(rows: list[dict]) -> list[dict]:
+    conv = []
+    for a in rows:
+        conv.append(
+            {
+                "source": {"name": a.get("source")},
+                "title": a.get("title"),
+                "url": a.get("url"),
+                "publishedAt": a.get("published_at"),
+                "content": a.get("description", ""),
+                "author": "Unknown",
+            }
+        )
+    return conv
+
+
+# ------------------- ГЛАВНАЯ ФУНКЦИЯ ------------------- #
 def update_news():
-    """Скачивает и сохраняет новости для Trump, Putin, Xi Jinping."""
-    last = get_last_saved_date()
-    if last:
-        start = last
-    else:
-        start = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%d")
-    end = datetime.utcnow().strftime("%Y-%m-%d")
-
-    print(f"Обновляем с {start} по {end}:")
+    POLITICIANS = {
+        "Trump": "Trump",
+        "Putin": "Putin",
+        "Xi": '"Xi Jinping"',
+    }
 
     all_raw = []
-    for q in ["Trump", "Putin", "\"Xi Jinping\""]:
-        arts = fetch_from_newsapi(q, start, end)
-        all_raw.extend(convert_to_standard(arts))
+    for name, q in POLITICIANS.items():
+        rows = convert_mediastack_to_standard(fetch_news_from_mediastack(q))
+        print(f"{name}: {len(rows)} статей")
+        all_raw.extend(rows)
 
-    t, p, x, m = categorize_news(all_raw)
-    save_news_to_db(t, "Trump")
-    save_news_to_db(p, "Putin")
-    save_news_to_db(x, "Xi Jinping")
-    save_news_to_db(m, "Multiple")
+    print(f"Всего получено {len(all_raw)} статей, классифицируем…")
+    trump, putin, xi, mixed = categorize_news(all_raw)
 
-    print("Обновление через NewsAPI завершено.")
+    save_news_to_db(trump, "Trump")
+    save_news_to_db(putin, "Putin")
+    save_news_to_db(xi, "Xi")
+    save_news_to_db(mixed, "Mixed")
+
+    print("✅ Обновление базы завершено.")
+
 
 if __name__ == "__main__":
     update_news()
