@@ -95,16 +95,13 @@ def one_cycle():
     ts.to_csv(os.path.join(OUT_DIR, "timeseries.csv"), index=True)
 
     # — Генерация 10 графиков
-    plot1_timeseries(ts, OUT_DIR)
-    plot2_bar_total(ts, OUT_DIR)
-    plot3_rolling(ts, OUT_DIR)
-    plot4_monthly(ts, OUT_DIR)
-    plot5_pie_sources(df, OUT_DIR)
-    plot6_weekday(ts, OUT_DIR)
-    plot7_top_days(ts, OUT_DIR)
-    plot8_cumulative(ts, OUT_DIR)
-    plot9_sentiment_dist(df, OUT_DIR)
-    plot10_top_sources_per_politician(df, OUT_DIR)
+    # после построения ts и df:
+    plot_overall_timeseries(ts, OUT_DIR)
+    plot_monthly_aggregation(ts, OUT_DIR)
+    plot_weekly_aggregation(ts, OUT_DIR)
+    plot_cumulative(ts, OUT_DIR)
+    plot_sentiment_trends(df, OUT_DIR)
+    plot_top_sources(ts, df, OUT_DIR)
 
     print(f"[{now_utc()}] Цикл завершён. Результаты — в {OUT_DIR}")
 
