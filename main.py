@@ -11,17 +11,21 @@ import os
 import sys
 import subprocess
 
-# 0️⃣ Автоматическое клонирование репозитория (если нужно)
+# ----------------------------------------------------------------------------
+# 0️⃣ Автоматическое клонирование репозитория (если нет локально)
+# ----------------------------------------------------------------------------
 REPO_URL = "https://github.com/vkalinovski/RSS_Project.git"
 LOCAL_DIR = "RSS_Project"
 if not os.path.isdir(LOCAL_DIR):
     print(f"Cloning repository from {REPO_URL}...")
     subprocess.run(["git", "clone", REPO_URL, LOCAL_DIR], check=True)
 
-# Добавляем папку с клонированными модулями в PYTHONPATH
+# Добавляем папку с модулями в PYTHONPATH
 sys.path.insert(0, os.path.abspath(LOCAL_DIR))
 
-# 1️⃣ Импорт всех модулей (предварительно установите зависимости вручную!)
+# ----------------------------------------------------------------------------
+# 1️⃣ Импорт всех необходимых модулей
+# ----------------------------------------------------------------------------
 from rss_feeds import RSS_FEEDS
 from api_fetcher import fetch_newsapi_articles
 from rss import fetch_rss_articles
@@ -36,41 +40,54 @@ from analyze import (
 from utils import now_utc
 import pandas as pd
 
+# ----------------------------------------------------------------------------
 # 2️⃣ Конфигурация
+# ----------------------------------------------------------------------------
 KEYWORDS  = ["Emmanuel Macron", "Marine Le Pen"]
-MAX_ITEMS = 200
-OUT_DIR   = "/content/gdrive/MyDrive/test"  # убедитесь, что смонтировали сюда Drive
+MAX_ITEMS = 100   # бесплатный тариф NewsAPI ограничен 100 статьями
+OUT_DIR   = "/content/gdrive/MyDrive/test"  # папка на вашем Google Drive
 
+# ----------------------------------------------------------------------------
+# 3️⃣ Основная функция: сбор → анализ → сохранение
+# ----------------------------------------------------------------------------
 def one_cycle():
     print(f"[{now_utc()}] Запуск цикла: сбор → анализ → сохранение")
 
-    # Инициализация БД
+    # 1) Создаём или проверяем базу данных
     create_database()
 
-    # Сбор статей
+    # 2) Сбор новостей из RSS и NewsAPI
     rss_news = fetch_rss_articles(MAX_ITEMS)
     api_news = fetch_newsapi_articles(KEYWORDS, MAX_ITEMS)
     all_news = rss_news + api_news
 
-    # Фильтрация по Macron / Le Pen
-    macron = [n for n in all_news if "Emmanuel Macron" in (n.get('content') or "")]
-    lepen  = [n for n in all_news if "Marine Le Pen"  in (n.get('content') or "")]
+    # 3) Фильтрация и категоризация по политическим деятелям
+    macron = [
+        {**n, "politician": "Emmanuel Macron"}
+        for n in all_news
+        if "Emmanuel Macron" in (n.get("content") or "")
+    ]
+    lepen = [
+        {**n, "politician": "Marine Le Pen"}
+        for n in all_news
+        if "Marine Le Pen" in (n.get("content") or "")
+    ]
 
-    # Сохранение в БД
+    # 4) Сохранение в SQLite
     save_news_to_db(macron, "Emmanuel Macron")
-    save_news_to_db(lepen,  "Marine Le Pen")
+    save_news_to_db(lepen, "Marine Le Pen")
 
-    # Тональный анализ
+    # 5) Сентимент-анализ
     combined = macron + lepen
     sentimented = analyze_sentiment(combined)
 
-    # Временной ряд и CSV
+    # 6) Построение временного ряда и сохранение CSV
     df = pd.DataFrame(sentimented)
     ts = build_timeseries(df)
     os.makedirs(OUT_DIR, exist_ok=True)
     ts.to_csv(os.path.join(OUT_DIR, "timeseries.csv"), index=True)
 
-    # 10 графиков
+    # 7) Генерация 10 различных графиков
     plot1_timeseries(ts, OUT_DIR)
     plot2_bar_total(ts, OUT_DIR)
     plot3_rolling(ts, OUT_DIR)
@@ -82,8 +99,10 @@ def one_cycle():
     plot9_ratio(ts, OUT_DIR)
     plot10_correlation(ts, OUT_DIR)
 
-    print(f"[{now_utc()}] Цикл завершён. Проверьте папку: {OUT_DIR}")
+    print(f"[{now_utc()}] Цикл завершён. Результаты сохранены в {OUT_DIR}")
 
+# ----------------------------------------------------------------------------
+# 4️⃣ Точка входа
+# ----------------------------------------------------------------------------
 if __name__ == '__main__':
     one_cycle()
-
