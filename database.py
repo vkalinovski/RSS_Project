@@ -1,19 +1,21 @@
 import sqlite3
 from pathlib import Path
-import os
 from datetime import datetime
+import re   #  ← добавили
 
-# Путь к папке с данными на Google Drive
-DATA_DIR = Path(os.getenv("DATA_PATH", "/content/drive/MyDrive/test"))
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-db_path = DATA_DIR / "news.db"
+# Путь к базе данных
+db_path = Path(__file__).parent / "news.db"
+
 
 def create_database():
-    """Создаёт таблицу news, если её ещё нет."""
+    """
+    Создаёт таблицу news, если её ещё нет.
+    """
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    cursor.execute('''
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS news (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             source TEXT,
@@ -25,105 +27,155 @@ def create_database():
             politician TEXT NOT NULL,
             sentiment TEXT
         )
-    ''')
+    """
+    )
 
     conn.commit()
     conn.close()
-    print("Таблица news готова.")
+    print("Таблица news создана (если она ещё не существовала)!")
+
 
 def get_last_saved_date():
     """
-    Возвращает дату самой свежей статьи в базе (YYYY-MM-DD),
-    или None, если записей нет.
+    Возвращает дату самой свежей статьи в базе данных (в формате "YYYY-MM-DD").
+    Если записей нет, возвращает None.
     """
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
+
     cursor.execute("SELECT MAX(published_at) FROM news")
     last_date = cursor.fetchone()[0]
+
     conn.close()
-    if not last_date:
-        return None
-    return last_date.split(" ")[0]
+    return None if not last_date else last_date.split(" ")[0]  # убираем время
+
 
 def clean_value(value):
     return value if value and value.strip() else None
 
-def fix_date_format(date_str):
-    """Преобразует ISO-строку в формат SQLite."""
+
+def fix_date_format(date_str: str | None) -> str:
+    """
+    Преобразует дату вида 2024-12-02T05:21:57+00:00 к
+    виду 2024-12-02 05:21:57 (SQLite).
+    """
     if not date_str:
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     try:
-        # Убираем смещение часового пояса
-        base = date_str.split("+")[0].replace("Z", "")
-        dt = datetime.fromisoformat(base)
-        return dt.strftime("%Y-%m-%d %H:%M:%S")
+        date_str = date_str.split("+")[0]  # убираем смещение
+        return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S").strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
     except ValueError:
+        print(f"⚠️  Неверный формат даты: {date_str}")
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-def save_news_to_db(news, category):
-    """Сохраняет список статей с категорией (Trump/Putin/Xi Jinping/Multiple)."""
+
+def save_news_to_db(news: list[dict], category: str):
+    """
+    Сохраняет список статей в БД, игнорируя уже существующие по URL.
+    """
+    if not news:
+        return
+
     conn = sqlite3.connect(db_path, check_same_thread=False)
     cursor = conn.cursor()
+
     saved = 0
     for art in news:
-        src = art.get("source")
-        if isinstance(src, dict):
-            src = src.get("name")
-        published = fix_date_format(art.get("publishedAt"))
-        title = clean_value(art.get("title"))
-        content = clean_value(art.get("content"))
-        author = clean_value(art.get("author"))
+        url = art["url"]
+
+        source = art.get("source")
+        if isinstance(source, dict):
+            source = source.get("name")
+
+        published_at = fix_date_format(art.get("publishedAt"))
 
         try:
-            cursor.execute('''
-                INSERT OR IGNORE INTO news 
-                  (source, title, url, published_at, content, author, politician)
+            cursor.execute(
+                """
+                INSERT OR IGNORE INTO news
+                (source, title, url, published_at, content, author, politician)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (src, title, art["url"], published, content, author, category))
-            if cursor.rowcount > 0:
-                saved += 1
+            """,
+                (
+                    source,
+                    clean_value(art.get("title")),
+                    url,
+                    published_at,
+                    clean_value(art.get("content")),
+                    clean_value(art.get("author")),
+                    category,
+                ),
+            )
+            saved += cursor.rowcount
         except sqlite3.Error as e:
-            print("DB Error:", e)
+            print(f"SQLite error: {e}")
 
     conn.commit()
     conn.close()
-    print(f"  → Сохранено {saved} статей для {category}")
+    print(f"Сохранено {saved} новых статей в категорию {category!r}")
 
-def categorize_news(news):
+
+# ---------- НОВАЯ КАТЕГОРИЗАЦИЯ ---------- #
+KEYWORDS = {
+    "Trump": [r"\btrump\b"],
+    "Putin": [r"\bputin\b"],
+    "Xi": [r"\bxi\s+j(i|inping)\b", r"\bxi\bjinping\b"],
+}
+
+
+def categorize_news(news: list[dict]):
     """
-    Разбивает список статей на четыре категории:
-    Trump, Putin, Xi Jinping, Multiple (если упоминаются ≥2).
+    Делит статьи на списки Trump / Putin / Xi / Mixed.
+    Возвращает кортеж из четырёх списков.
     """
-    trump, putin, xi, multi = [], [], [], []
+    trump, putin, xi, mixed = [], [], [], []
+
     for art in news:
         text = (
-            (art.get("title") or "") + " " +
-            (art.get("description") or "") + " " +
-            (art.get("content") or "")
+            (art.get("title") or "")
+            + " "
+            + (art.get("description") or "")
+            + " "
+            + (art.get("content") or "")
         ).lower()
-        m_tr = "trump" in text
-        m_pt = "putin" in text
-        m_xj = "xi jinping" in text
-        count = sum([m_tr, m_pt, m_xj])
-        if count == 1:
-            if m_tr:   trump.append(art)
-            if m_pt:   putin.append(art)
-            if m_xj:   xi.append(art)
-        elif count > 1:
-            multi.append(art)
-    return trump, putin, xi, multi
+
+        hits = {
+            name
+            for name, patterns in KEYWORDS.items()
+            if any(re.search(p, text) for p in patterns)
+        }
+
+        if hits == {"Trump"}:
+            trump.append(art)
+        elif hits == {"Putin"}:
+            putin.append(art)
+        elif hits == {"Xi"}:
+            xi.append(art)
+        elif hits:  # упомянуты 2+
+            mixed.append(art)
+
+    return trump, putin, xi, mixed
+# ----------------------------------------- #
+
 
 def remove_duplicates():
-    """Удаляет дубликаты по title+url."""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
         DELETE FROM news
-        WHERE id NOT IN (
-            SELECT MIN(id) FROM news GROUP BY title, url
-        )
-    """)
+        WHERE id NOT IN (SELECT MIN(id) FROM news GROUP BY title, url)
+    """
+    )
     conn.commit()
-    conn.close()
-    print("Дубликаты удалены.")
 
+    cursor.execute("SELECT COUNT(*) FROM news")
+    print(f"После удаления дубликатов осталось {cursor.fetchone()[0]} записей")
+    conn.close()
+
+
+if __name__ == "__main__":
+    create_database()
