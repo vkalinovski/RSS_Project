@@ -10,14 +10,14 @@ from analyze import plot_all
 def main():
     BASE = Path(__file__).parent
     OUT  = BASE / "output"
-    OUT.mkdir(exist_ok=True)
+    OUT.mkdir(exist_ok=True, parents=True)
 
     create_database()
     remove_duplicates()
     update_database()              # добавит колонку sentiment, если её нет
 
-    fetch_rss_news()               # RSS → news.db
-    update_news()                  # Mediastack → news.db
+    fetch_rss_news(max_items=50)   # RSS → news.db
+    update_news(keywords=["Trump","Biden"], max_items=100)
 
     update_news_sentiment(batch_size=16)  # проставит sentiment
 
