@@ -1,4 +1,8 @@
-feedparser==6.0.11
-python-dotenv==1.0.1
-tqdm==4.67.1
-transformers==4.46.3
+# все пакеты либо уже стоят в Colab, либо лёгкие
+feedparser
+requests
+python-dotenv
+pandas==2.2.2      # совпадает с Colab
+matplotlib==3.8.4  # совместимо с pandas-2.2
+nltk==3.9.1
+tqdm
