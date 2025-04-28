@@ -1,64 +1,81 @@
 import sqlite3
-import pandas as pd
-import matplotlib.pyplot as plt
 from datetime import datetime
 
+import matplotlib.pyplot as plt
+import pandas as pd
+
 DB_PATH = "news.db"
+POLITICIANS = ["Trump", "Putin", "Xi"]  # актуальный список
+
 
 def load_data():
     conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql("SELECT source, published_at, politician, sentiment FROM news", conn)
+    df = pd.read_sql(
+        "SELECT source, published_at, politician, sentiment FROM news", conn
+    )
     conn.close()
+
     df["published_at"] = pd.to_datetime(df["published_at"]).dt.date
-    df = df[df["published_at"] >= datetime(2024,11,1).date()]
-    df = df[~df["politician"].isin(["Multiple"])]
+    df = df[df["published_at"] >= datetime(2024, 9, 1).date()]  # новая отсечка
+    df = df[df["politician"] != "Mixed"]  # исключаем «смешанные» статьи
     return df
 
-def analyze_mentions(df, smooth=True):
-    grp = df.groupby(["published_at","politician"]).size().unstack(fill_value=0)
-    plt.figure(figsize=(12,6))
-    ymax = grp.stack().quantile(0.95)*1.1
-    for col in grp:
-        series = grp[col].rolling(window=3).mean() if smooth else grp[col]
-        plt.plot(grp.index, series, label=col)
-    plt.title("Упоминания политиков в СМИ с ноября 2024")
-    plt.xlabel("Дата"); plt.ylabel("Количество")
-    plt.ylim(0,ymax)
-    plt.legend(); plt.grid(); plt.xticks(rotation=45)
+
+def filter_sources_by_mentions(df, threshold=100):
+    counts = df["source"].value_counts()
+    good = counts[counts > threshold].index
+    return df[df["source"].isin(good)]
+
+
+# ---------- Временной ряд по политикам ---------- #
+def plot_mentions(df):
+    g = df.groupby(["published_at", "politician"]).size().unstack(fill_value=0)
+
+    plt.figure(figsize=(12, 6))
+    for name in POLITICIANS:
+        if name in g.columns:
+            plt.plot(
+                g.index,
+                g[name].rolling(window=3).mean(),
+                label=name,
+                linewidth=2,
+                alpha=0.8,
+            )
+
+    plt.title("Частота упоминаний (с 01-09-2024)")
+    plt.xlabel("Дата")
+    plt.ylabel("Количество упоминаний")
+    plt.grid(True)
+    plt.legend()
+    plt.xticks(rotation=45)
+    plt.tight_layout()
     plt.show()
 
-def analyze_sources_bar(df):
-    counts = df.groupby(["source","politician"]).size().unstack(fill_value=0)
-    top = counts.sum(axis=1).nlargest(20).index
-    counts = counts.loc[top]
-    counts.plot.bar(stacked=True, figsize=(14,6))
-    plt.title("ТОП-20 источников по упоминаниям"); plt.ylabel("Количество"); plt.xticks(rotation=45,ha="right")
-    plt.show()
 
-def sentiment_pie(df, pol):
-    sub = df[df["politician"]==pol]
-    cnt = sub["sentiment"].value_counts()
-    cnt.plot.pie(autopct="%1.1f%%", startangle=140, wedgeprops={"edgecolor":"black"}, figsize=(6,6))
-    plt.title(f"Тональность для {pol}")
-    plt.ylabel(""); plt.show()
-
-def compare_sentiments(df):
-    cnt = df.groupby(["politician","sentiment"]).size().unstack(fill_value=0)
-    cnt.plot.bar(figsize=(8,6))
-    plt.title("Сравнение тональностей"); plt.ylabel("Количество"); plt.xticks(rotation=0); plt.grid(axis="y"); plt.show()
-
-def main():
-    df = load_data()
-    if df.empty:
-        print("Нет данных для анализа.")
+# ---------- Тональность ---------- #
+def sentiment_pie(df, politician):
+    sub = df[df["politician"] == politician]
+    if sub.empty:
         return
-    analyze_mentions(df, smooth=True)
-    analyze_mentions(df, smooth=False)
-    analyze_sources_bar(df)
-    for pol in ["Trump","Putin","Xi Jinping"]:
-        sentiment_pie(df, pol)
-    compare_sentiments(df)
+    counts = sub["sentiment"].value_counts()
+    plt.figure(figsize=(5, 5))
+    plt.pie(
+        counts,
+        labels=counts.index,
+        autopct="%1.1f%%",
+        startangle=140,
+        wedgeprops={"edgecolor": "black"},
+    )
+    plt.title(f"Тональность новостей о {politician}")
+    plt.show()
 
+
+# ---------- Main ---------- #
 if __name__ == "__main__":
-    main()
-
+    data = load_data()
+    if data.empty:
+        print("Нет данных после 01-09-2024, сначала соберите новости.")
+    else:
+        plot_mentions(data)
+        for p in POLITICIANS:
+            sentiment_pie(data, p)
