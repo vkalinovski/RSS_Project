@@ -7,24 +7,36 @@ Original file is located at
     https://colab.research.google.com/drive/1y_j7EBQXocwJpJVWDYcIBhyr2w0ZG75C
 """
 
+# File: rss.py
+
 import feedparser
 from typing import List, Dict
 from rss_feeds import RSS_FEEDS
 from utils import normalise_date, now_utc
 
 def fetch_rss_articles(max_items: int = 100) -> List[Dict]:
-    #Сбор статей из RSS-лент, определённых в rss_feeds.py
+    """
+    Сбор статей из всех RSS_FEEDS.
+    max_items — максимум статей **на каждый** источник.
+    """
     articles: List[Dict] = []
-    for name, url in RSS_FEEDS.items():
+    for source_name, url in RSS_FEEDS.items():
         feed = feedparser.parse(url)
-        for entry in feed.entries[:max_items]:
+        if not feed.entries:
+            print(f"[{now_utc()}] RSS пуст или недоступен: {source_name}")
+            continue
+        count = 0
+        for entry in feed.entries:
+            if count >= max_items:
+                break
             articles.append({
-                "source": name,
-                "title": entry.get("title"),
-                "content": entry.get("summary"),
+                "source": source_name,
+                "title":   entry.get("title", ""),
+                "content": entry.get("summary", ""),
                 "published": normalise_date(entry.get("published")),
-                "url": entry.get("link"),
-                "author": entry.get("author"),
+                "url":     entry.get("link"),
+                "author":  entry.get("author")
             })
-    print(f"[{now_utc()}] Слов получено из RSS: {len(articles)}")
+            count += 1
+        print(f"[{now_utc()}] Получено {count} из RSS «{source_name}»")
     return articles
