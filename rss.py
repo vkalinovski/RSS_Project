@@ -9,8 +9,8 @@ Original file is located at
 
 import feedparser
 from typing import List, Dict
-from .rss_feeds import RSS_FEEDS
-from .utils import normalise_date, now_utc
+from rss_feeds import RSS_FEEDS
+from utils import normalise_date, now_utc
 
 def fetch_rss_articles(max_items: int = 100) -> List[Dict]:
     #Сбор статей из RSS-лент, определённых в rss_feeds.py
