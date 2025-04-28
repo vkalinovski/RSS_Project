@@ -28,7 +28,7 @@ python-dotenv==1.0.1
 pytz==2025.1
 PyYAML==6.0.2
 regex==2024.11.6
-requests==2.32.3          # <-- исправлено
+requests==2.32.3       # ← БЫЛА опечатка
 safetensors==0.5.2
 seaborn==0.13.2
 sgmllib3k==1.0.0
