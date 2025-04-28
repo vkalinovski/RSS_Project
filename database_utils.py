@@ -7,18 +7,21 @@ Original file is located at
     https://colab.research.google.com/drive/1y_j7EBQXocwJpJVWDYcIBhyr2w0ZG75C
 """
 
+import os
 import sqlite3
 from pathlib import Path
 from typing import List, Dict
 from utils import now_utc
 
-DB_PATH = Path("/content/drive/MyDrive/test/news.db")
-
+# Путь к БД теперь в той же папке, что графики/CSV
+DRIVE = "/content/gdrive/MyDrive/test"
+DB_PATH = Path(DRIVE) / "news.db"
 
 def create_database():
-    #Создаёт таблицу news, если её нет.
-    #Поле politician — Macron или Le Pen.
-
+    """
+    Создаёт таблицу news, если её нет.
+    """
+    os.makedirs(DRIVE, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     cur.execute('''
@@ -36,15 +39,14 @@ def create_database():
     conn.commit(); conn.close()
     print(f"[{now_utc()}] БД готова: {DB_PATH}")
 
-
 def clean_value(val: str) -> str:
-    # Преобразует пустые строки в NULL-like None
+    """Преобразует пустые строки в None"""
     return val.strip() if isinstance(val, str) and val.strip() else None
 
-
 def fix_date_format(date_str: str) -> str:
-    # Преобразует ISO8601 с зоной к "YYYY-MM-DD HH:MM:SS"
-
+    """
+    Преобразует ISO8601 к 'YYYY-MM-DD HH:MM:SS'
+    """
     from datetime import datetime
     if not date_str:
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -53,14 +55,14 @@ def fix_date_format(date_str: str) -> str:
         dt_obj = datetime.fromisoformat(core)
         return dt_obj.strftime("%Y-%m-%d %H:%M:%S")
     except Exception:
-        print(f"[fix_date_format] Invalid date {date_str}")
+        print(f"[{now_utc()}] Неправильный формат даты: {date_str}")
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-
 def save_news_to_db(news: List[Dict], politician: str):
-    # Сохраняет список новостей в БД с категорией politician.
-
-    conn = sqlite3.connect(DB_PATH)
+    """
+    Сохраняет список новостей в БД с категорией politician.
+    """
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     cur = conn.cursor()
     saved = 0
     for art in news:
@@ -72,13 +74,14 @@ def save_news_to_db(news: List[Dict], politician: str):
         author = clean_value(art.get("author"))
         try:
             cur.execute(
-                "INSERT OR IGNORE INTO news (source,title,url,published_at,content,author,politician)"
-                " VALUES (?,?,?,?,?,?,?)",
-                (src,title,url,pub,content,author,politician)
+                "INSERT OR IGNORE INTO news "
+                "(source,title,url,published_at,content,author,politician) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (src, title, url, pub, content, author, politician)
             )
             if cur.rowcount:
                 saved += 1
-        except Exception as e:
-            print(f"[save_news_to_db] Error: {e}")
+        except sqlite3.Error as e:
+            print(f"[{now_utc()}] Ошибка вставки в БД: {e}")
     conn.commit(); conn.close()
-    print(f"[{now_utc()}] Сохранено {saved} для {politician}")
+    print(f"[{now_utc()}] Сохранено {saved} статей для «{politician}»")
