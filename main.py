@@ -1,114 +1,82 @@
-# File: RSS_Project/main.py
-
-import os
-import sys
-import subprocess
+# -*- coding: utf-8 -*-
+import os, sys, subprocess
 from datetime import datetime
 import pandas as pd
 
-# ----------------------------------------------------------------------------
-# 0️⃣ Клонирование репозитория (если не загружен)
-# ----------------------------------------------------------------------------
+# 0️⃣ Клонирование репозитория (если нужно)
 REPO_URL  = "https://github.com/vkalinovski/RSS_Project.git"
 LOCAL_DIR = "RSS_Project"
 if not os.path.isdir(LOCAL_DIR):
-    print("Cloning repository…")
-    subprocess.run(["git", "clone", REPO_URL, LOCAL_DIR], check=True)
-
-# Добавляем проект в PYTHONPATH
+    subprocess.run(["git","clone",REPO_URL,LOCAL_DIR], check=True)
 sys.path.insert(0, os.path.abspath(LOCAL_DIR))
 
-# ----------------------------------------------------------------------------
-# 1️⃣ Импорт модулей проекта
-# ----------------------------------------------------------------------------
+# 1️⃣ Импорты
 from rss                import fetch_rss_articles
 from api_fetcher        import fetch_newsapi_articles
 from database_utils     import create_database, save_news_to_db
 from sentiment_analysis import analyze_sentiment
 from analyze            import (
-    build_timeseries,
-    plot_overall_timeseries,
-    plot_monthly_aggregation,
-    plot_weekly_aggregation,
-    plot_cumulative,
-    plot_sentiment_trends,
-    plot_top_sources,
-    plot_top20_sources_bar,
-    plot_top5_sources_timeseries
+    build_timeseries, plot_overall_timeseries, plot_weekly_aggregation,
+    plot_monthly_aggregation, plot_cumulative, plot_sentiment_trends,
+    plot_top_sources, plot_top20_sources_bar, plot_top5_sources_timeseries
 )
 from utils              import now_utc
 
-# ----------------------------------------------------------------------------
-# 2️⃣ Конфигурация
-# ----------------------------------------------------------------------------
-KEYWORDS       = ["Xi Jinping", "Donald Trump"]
-MAX_ITEMS      = 100                  # лимит free-тарифа NewsAPI
-API_LANGUAGES  = ["en"]               # англоязычные статьи
-OUT_DIR        = "/content/gdrive/MyDrive/test"  # папка на Google Drive
-CUTOFF_DATE    = datetime(2025, 1, 1) # с 1 января 2025
+# 2️⃣ Настройки
+KEYWORDS      = ["Xi Jinping", "Donald Trump", "Vladimir Putin"]
+MAX_ITEMS     = 100
+API_LANGUAGES = ["en"]
+OUT_DIR       = "/content/gdrive/MyDrive/test"
+CUTOFF_DATE   = datetime(2024, 9, 1)
 
-# ----------------------------------------------------------------------------
-# 3️⃣ Основная функция: сбор → фильтрация → сохранение → анализ → визуализация
-# ----------------------------------------------------------------------------
 def one_cycle():
     print(f"[{now_utc()}] Старт цикла…")
-
-    # 1) Инициализация БД
     create_database()
 
-    # 2) Сбор новостей
     rss_news = fetch_rss_articles(MAX_ITEMS)
     api_news = []
     for lang in API_LANGUAGES:
         api_news += fetch_newsapi_articles(KEYWORDS, MAX_ITEMS, language=lang)
     all_news = rss_news + api_news
 
-    # 3) Фильтрация по дате: только с 2025-01-01
+    # Фильтрация по дате
     filtered = []
     for art in all_news:
         try:
             dt = datetime.strptime(art["published"], "%Y-%m-%d")
-        except Exception:
+        except:
             continue
         if dt >= CUTOFF_DATE:
             filtered.append(art)
     if not filtered:
-        print(f"[{now_utc()}] Нет статей с {CUTOFF_DATE.date()}.")
-        return
+        print(f"[{now_utc()}] Нет статей с {CUTOFF_DATE.date()}."); return
 
-    # 4) Категоризация по политикам
-    xi, trump = [], []
+    # Категории по политикам
+    lists = {"Xi Jinping":[], "Donald Trump":[], "Vladimir Putin":[]}
     for art in filtered:
-        text = (art.get("title") or "") + " " + (art.get("content") or "")
-        if "Xi Jinping" in text:
-            xi.append({**art, "politician": "Xi Jinping"})
-        if "Donald Trump" in text:
-            trump.append({**art, "politician": "Donald Trump"})
-    if not xi and not trump:
-        print(f"[{now_utc()}] Нет упоминаний Xi Jinping или Donald Trump.")
-        return
+        txt = (art.get("title") or "") + " " + (art.get("content") or "")
+        for pol in lists:
+            if pol in txt:
+                lists[pol].append({**art, "politician": pol})
+    for pol, lst in lists.items():
+        save_news_to_db(lst, pol)
 
-    # 5) Сохранение в БД
-    save_news_to_db(xi,    "Xi Jinping")
-    save_news_to_db(trump, "Donald Trump")
-
-    # 6) Сентимент-анализ
-    combined    = xi + trump
+    # Сентимент
+    combined    = sum(lists.values(), [])
     sentimented = analyze_sentiment(combined)
 
-    # 7) Подготовка DataFrame и временного ряда
+    # DataFrame и временной ряд
     df = pd.DataFrame(sentimented)
     df["published_at"] = pd.to_datetime(df["published"]).dt.strftime("%Y-%m-%d")
     ts = build_timeseries(df)
 
-    # 8) Сохранение CSV
+    # Сохранение CSV + графиков
     os.makedirs(OUT_DIR, exist_ok=True)
     ts.to_csv(os.path.join(OUT_DIR, "timeseries.csv"), index=True)
 
-    # 9️⃣ Визуализация: шесть + три расширенных графика
     plot_overall_timeseries(ts, OUT_DIR)
-    plot_monthly_aggregation(ts, OUT_DIR)
     plot_weekly_aggregation(ts, OUT_DIR)
+    plot_monthly_aggregation(ts, OUT_DIR)
     plot_cumulative(ts, OUT_DIR)
     plot_sentiment_trends(df, OUT_DIR)
     plot_top_sources(df, OUT_DIR)
@@ -117,8 +85,5 @@ def one_cycle():
 
     print(f"[{now_utc()}] Графики и CSV сохранены в {OUT_DIR}")
 
-# ----------------------------------------------------------------------------
-# 4️⃣ Запуск
-# ----------------------------------------------------------------------------
 if __name__ == "__main__":
     one_cycle()
