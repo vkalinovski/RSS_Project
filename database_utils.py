@@ -8,6 +8,21 @@ from utils import now_utc
 DRIVE   = "/content/gdrive/MyDrive/test"
 DB_PATH = Path(DRIVE) / "news.db"
 
+def remove_duplicates():
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("DELETE FROM news WHERE id NOT IN (SELECT MIN(id) FROM news GROUP BY url)")
+    conn.commit()
+    conn.close()
+
+def update_database():
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        conn.execute("ALTER TABLE news ADD COLUMN sentiment TEXT")
+    except sqlite3.OperationalError:
+        pass  # Колонка уже существует
+    conn.close()
+
+
 def create_database():
     """
     Создаёт таблицу news, если её нет.
