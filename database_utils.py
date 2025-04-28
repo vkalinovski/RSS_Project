@@ -1,26 +1,12 @@
-# -*- coding: utf-8 -*-
 import os
 import sqlite3
 from pathlib import Path
 from typing import List, Dict
 from utils import now_utc
 
-DRIVE   = "/content/gdrive/MyDrive/test"
+# Путь к Google Drive (для Colab) или локальной папке
+DRIVE   = os.getenv("GDRIVE_PATH", "/content/gdrive/MyDrive/test")
 DB_PATH = Path(DRIVE) / "news.db"
-
-def remove_duplicates():
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("DELETE FROM news WHERE id NOT IN (SELECT MIN(id) FROM news GROUP BY url)")
-    conn.commit()
-    conn.close()
-
-def update_database():
-    conn = sqlite3.connect(DB_PATH)
-    try:
-        conn.execute("ALTER TABLE news ADD COLUMN sentiment TEXT")
-    except sqlite3.OperationalError:
-        pass  # Колонка уже существует
-    conn.close()
 
 
 def create_database():
@@ -39,33 +25,35 @@ def create_database():
             published_at TEXT,
             content TEXT,
             author TEXT,
-            politician TEXT NOT NULL
+            politician TEXT NOT NULL,
+            sentiment TEXT
         )
     ''')
     conn.commit()
     conn.close()
     print(f"[{now_utc()}] БД готова: {DB_PATH}")
 
+
 def clean_value(val: str) -> str:
     """Преобразует пустые строки в None"""
     return val.strip() if isinstance(val, str) and val.strip() else None
 
+
 def fix_date_format(date_str: str) -> str:
+    """
+    Преобразует ISO8601 к 'YYYY-MM-DD HH:MM:SS'
+    """
     from datetime import datetime
     if not date_str:
-        return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
-        # Убрать временную зону и микросекунды
-        core = date_str.split('+')[0].split('.')[0].strip()
-        dt_obj = datetime.strptime(core, '%Y-%m-%dT%H:%M:%S')
+        core   = date_str.split("+")[0]
+        dt_obj = datetime.fromisoformat(core)
         return dt_obj.strftime("%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        try:
-            dt_obj = datetime.strptime(core, '%a, %d %b %Y %H:%M:%S')
-            return dt_obj.strftime("%Y-%m-%d %H:%M:%S")
-        except Exception:
-            print(f"[{now_utc()}] Неправильный формат даты: {date_str}")
-            return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        print(f"[{now_utc()}] Неправильный формат даты: {date_str}")
+        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
 
 def save_news_to_db(news: List[Dict], politician: str):
     """
@@ -78,7 +66,7 @@ def save_news_to_db(news: List[Dict], politician: str):
         src     = clean_value(art.get("source"))
         title   = clean_value(art.get("title"))
         url     = art.get("url")
-        pub     = fix_date_format(art.get("published"))
+        pub     = fix_date_format(art.get("published") or art.get("published_at"))
         content = clean_value(art.get("content"))
         author  = clean_value(art.get("author"))
         try:
@@ -96,3 +84,56 @@ def save_news_to_db(news: List[Dict], politician: str):
     conn.close()
     print(f"[{now_utc()}] Сохранено {saved} статей для «{politician}»")
 
+
+def remove_duplicates():
+    """
+    Удаляет полные дубликаты (одинаковые title и url).
+    """
+    conn = sqlite3.connect(DB_PATH)
+    cur  = conn.cursor()
+    cur.execute("""
+        DELETE FROM news
+        WHERE id NOT IN (
+            SELECT MIN(id) FROM news GROUP BY title, url
+        )
+    """)
+    conn.commit()
+    cur.execute("SELECT COUNT(*) FROM news")
+    count = cur.fetchone()[0]
+    conn.close()
+    print(f"[{now_utc()}] После удаления дубликатов осталось {count} записей")
+
+
+def update_database():
+    """
+    Добавляет колонку sentiment, если её нет.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    cur  = conn.cursor()
+    cur.execute("PRAGMA table_info(news)")
+    cols = [row[1] for row in cur.fetchall()]
+    if "sentiment" not in cols:
+        cur.execute("ALTER TABLE news ADD COLUMN sentiment TEXT")
+        conn.commit()
+        print(f"[{now_utc()}] Колонка sentiment добавлена!")
+    conn.close()
+
+
+def categorize_news(news: List[Dict]):
+    """
+    Фильтрует статьи по тому, кто упоминается.
+    """
+    trump = []
+    biden = []
+    both  = []
+    for art in news:
+        text = ((art.get("title") or "") + " " + (art.get("content") or "")).lower()
+        t = "trump" in text
+        b = "biden" in text
+        if t and b:
+            both.append(art)
+        elif t:
+            trump.append(art)
+        elif b:
+            biden.append(art)
+    return trump, biden, both
