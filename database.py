@@ -1,70 +1,76 @@
 import sqlite3, re
-from datetime import datetime
 from pathlib import Path
+from datetime import datetime
 
-ROOT_DIR = Path("/content/drive/MyDrive/etst/RSS_Project")
-ROOT_DIR.mkdir(parents=True, exist_ok=True)
-DB_PATH  = ROOT_DIR / "news.db"
+DB = Path(__file__).parent / "news.db"
 
-def create_database():
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS news(
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              source TEXT, title TEXT, url TEXT UNIQUE,
-              published_at TEXT, content TEXT, author TEXT,
-              politician TEXT, sentiment TEXT
-            )
-        """)
-    print("✓ таблица news OK")
+def create():
+    with sqlite3.connect(DB) as c:
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS news (
+                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   source TEXT, title TEXT, url TEXT UNIQUE,
+                   published_at TEXT, content TEXT,
+                   politician TEXT, sentiment TEXT
+               )"""
+        )
 
-def clean(x):  # "" → None
-    return x if x and x.strip() else None
-
-def fix_date(ds: str | None) -> str:
-    if not ds:
-        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ds = ds.rstrip("Z")
-    if "+" in ds:
-        ds = ds.split("+")[0]
-    if "." in ds:
-        ds = ds.split(".")[0]
+# ---------- дата ISO-8601 → YYYY-MM-DD HH:MM:SS ----------
+def fix_date(s: str | None) -> str:
+    if not s:
+        return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    s = s.rstrip("Z")
+    if "+" in s:
+        s = s.split("+")[0]
+    if "." in s:
+        s = s.split(".")[0]
     try:
-        return datetime.strptime(ds, "%Y-%m-%dT%H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
+        return datetime.strptime(s, "%Y-%m-%dT%H:%M:%S").strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
     except ValueError:
-        print("⚠ bad date:", ds)
-        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
-def save_news_to_db(rows: list[dict], cat: str):
-    create_database()                          # <─- страховка
-    with sqlite3.connect(DB_PATH) as conn:
-        cur = conn.cursor()
+# ---------- сохранение ----------
+def save(rows: list[dict]):
+    if not rows:
+        return
+    with sqlite3.connect(DB) as c:
+        cur = c.cursor()
         n = 0
         for a in rows:
-            cur.execute("""
-                INSERT OR IGNORE INTO news
-                 (source,title,url,published_at,content,author,politician)
-                 VALUES (?,?,?,?,?,?,?)
-            """, (
-                (a.get("source") or {}).get("name") if isinstance(a.get("source"), dict) else a.get("source"),
-                clean(a.get("title")), a["url"], fix_date(a.get("publishedAt")),
-                clean(a.get("content")), clean(a.get("author")), cat,
-            ))
+            cur.execute(
+                """INSERT OR IGNORE INTO news
+                   (source,title,url,published_at,content,politician)
+                   VALUES (?,?,?,?,?,?)""",
+                (
+                    a["source"],
+                    a["title"],
+                    a["url"],
+                    fix_date(a["publishedAt"]),
+                    a["content"],
+                    a["politician"],
+                ),
+            )
             n += cur.rowcount
-        conn.commit()
-    print(f"✓ {cat}: +{n}")
+        print(f"✓ {n} новых статей сохранено")
 
-KEYS = {
-    "Trump": [r"\btrump\b"],
-    "Putin": [r"\bputin\b"],
-    "Xi":    [r"\bxi\s+j(?:i|inping)\b", r"\bxi\bjinping\b"],
+# ---------- категоризация ----------
+PATTERNS = {
+    "Trump": re.compile(r"\btrump\b", re.I),
+    "Putin": re.compile(r"\bputin\b", re.I),
+    "Xi":    re.compile(r"\bxi\s+j(?:i|inping)\b|\bxi\bjinping\b", re.I),
 }
-def categorize(rows):
-    trump, putin, xi, mixed = [], [], [], []
+
+def categorize(rows: list[dict]):
+    outs = {k: [] for k in ["Trump", "Putin", "Xi", "Mixed"]}
     for a in rows:
-        txt = ((a.get("title") or "")+" "+(a.get("description") or "")+" "+(a.get("content") or "")).lower()
-        hit = {k for k,pats in KEYS.items() if any(re.search(p, txt) for p in pats)}
-        (trump if hit=={"Trump"} else putin if hit=={"Putin"} else xi if hit=={"Xi"} else mixed if hit else None).append(a)
-    return trump, putin, xi, mixed
+        text = " ".join((a.get("title",""), a.get("content",""))).lower()
+        hit = {p for p,pat in PATTERNS.items() if pat.search(text)}
+        if   hit=={"Trump"}: outs["Trump"].append(a)
+        elif hit=={"Putin"}: outs["Putin"].append(a)
+        elif hit=={"Xi"}:    outs["Xi"].append(a)
+        elif hit:            outs["Mixed"].append(a)
+    return outs
 
 
