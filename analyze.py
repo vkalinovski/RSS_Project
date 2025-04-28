@@ -13,11 +13,26 @@ from typing import List, Dict
 
 
 def build_timeseries(df: pd.DataFrame) -> pd.DataFrame:
-    #Возвращает ts: индекс = дата, колонки = ['Emmanuel Macron','Marine Le Pen'], значения = counts
+    """
+    Возвращает time-series:
+    индекс = дата YYYY-MM-DD, колонки = ['Emmanuel Macron','Marine Le Pen'], значения = количество упоминаний
+    """
+    # если пришёл столбец published -> переименуем
+    if "published" in df.columns and "published_at" not in df.columns:
+        df = df.rename(columns={"published": "published_at"})
 
-    ts = df.groupby(['published_at','politician']).size().unstack(fill_value=0)
-    ts.index = pd.to_datetime(ts.index)
-    return ts.sort_index()
+    # на случай, если дата содержит время, берём только YYYY-MM-DD
+    df["published_at"] = pd.to_datetime(df["published_at"]).dt.strftime("%Y-%m-%d")
+
+    ts = (
+        df.groupby(["published_at", "politician"])
+          .size()
+          .unstack(fill_value=0)
+    )
+    ts.index = pd.to_datetime(ts.index)          # превращаем индекс в DatetimeIndex
+    ts = ts.sort_index()
+    return ts
+
 
 
 # ---------- 10 ВИДОВ ГРАФИКОВ ----------
