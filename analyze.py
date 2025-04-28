@@ -2,18 +2,17 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-# Фильтр по дате: только с 1 января 2025
+# Все даты до этой отбрасываются
 START_DATE = pd.to_datetime("2025-01-01")
 
 
 def build_timeseries(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Строит DataFrame временных рядов: строки — даты (published_at),
-    столбцы — политики, значение — число упоминаний.
+    Переименовываем колонку и строим временной ряд:
+    строки — даты (published_at), столбцы — политики, значение — число упоминаний.
     """
-    df = df.copy()
+    df = df.rename(columns={'published': 'published_at'})
     df['published_at'] = pd.to_datetime(df['published_at'])
-    # Оставляем только записи с 2025-01-01 и позже
     df = df[df['published_at'] >= START_DATE]
 
     ts = (
@@ -29,8 +28,6 @@ def build_timeseries(df: pd.DataFrame) -> pd.DataFrame:
 def plot_overall_timeseries(ts: pd.DataFrame, out_dir: str):
     """Ежедневные упоминания (с 2025-01-01)."""
     out_dir = Path(out_dir)
-    ts = ts[ts.index >= START_DATE]
-
     plt.figure(figsize=(10, 5))
     for col in ts.columns:
         plt.plot(ts.index, ts[col], label=col)
@@ -46,7 +43,6 @@ def plot_overall_timeseries(ts: pd.DataFrame, out_dir: str):
 def plot_weekly_aggregation(ts: pd.DataFrame, out_dir: str):
     """Недельные суммарные упоминания (с 2025-01-01)."""
     out_dir = Path(out_dir)
-    ts = ts[ts.index >= START_DATE]
     weekly = ts.resample('W-MON').sum()
 
     plt.figure(figsize=(10, 5))
@@ -64,7 +60,6 @@ def plot_weekly_aggregation(ts: pd.DataFrame, out_dir: str):
 def plot_monthly_aggregation(ts: pd.DataFrame, out_dir: str):
     """Месячные суммарные упоминания (с 2025-01-01)."""
     out_dir = Path(out_dir)
-    ts = ts[ts.index >= START_DATE]
     monthly = ts.resample('MS').sum()
 
     plt.figure(figsize=(8, 5))
@@ -81,7 +76,6 @@ def plot_monthly_aggregation(ts: pd.DataFrame, out_dir: str):
 def plot_cumulative(ts: pd.DataFrame, out_dir: str):
     """Кумулятивная кривая упоминаний (с 2025-01-01)."""
     out_dir = Path(out_dir)
-    ts = ts[ts.index >= START_DATE]
     cum = ts.cumsum()
 
     plt.figure(figsize=(10, 5))
@@ -99,7 +93,7 @@ def plot_cumulative(ts: pd.DataFrame, out_dir: str):
 def plot_sentiment_trends(df: pd.DataFrame, out_dir: str):
     """Тренд тональности по неделям (с 2025-01-01)."""
     out_dir = Path(out_dir)
-    df = df.copy()
+    df = df.rename(columns={'published': 'published_at'})
     df['published_at'] = pd.to_datetime(df['published_at'])
     df = df[df['published_at'] >= START_DATE]
     df['week'] = df['published_at'].dt.to_period('W-MON').apply(lambda r: r.start_time)
@@ -123,7 +117,7 @@ def plot_sentiment_trends(df: pd.DataFrame, out_dir: str):
 def plot_top_sources(df: pd.DataFrame, out_dir: str):
     """Топ-5 источников для каждого политика (с 2025-01-01)."""
     out_dir = Path(out_dir)
-    df = df.copy()
+    df = df.rename(columns={'published': 'published_at'})
     df['published_at'] = pd.to_datetime(df['published_at'])
     df = df[df['published_at'] >= START_DATE]
 
@@ -143,7 +137,7 @@ def plot_top_sources(df: pd.DataFrame, out_dir: str):
 def plot_top20_sources_bar(df: pd.DataFrame, out_dir: str):
     """Бар-чарт ТОП-20 источников (>100 упоминаний с 2025-01-01)."""
     out_dir = Path(out_dir)
-    df = df.copy()
+    df = df.rename(columns={'published': 'published_at'})
     df['published_at'] = pd.to_datetime(df['published_at'])
     df = df[df['published_at'] >= START_DATE]
 
@@ -167,11 +161,12 @@ def plot_top20_sources_bar(df: pd.DataFrame, out_dir: str):
 def plot_top5_sources_timeseries(df: pd.DataFrame, out_dir: str):
     """Временные ряды по ТОП-5 источникам (с 2025-01-01)."""
     out_dir = Path(out_dir)
-    df = df.copy()
+    df = df.rename(columns={'published': 'published_at'})
     df['published_at'] = pd.to_datetime(df['published_at'])
     df = df[df['published_at'] >= START_DATE]
 
     top5 = df['source'].value_counts().head(5).index
+    # группируем по source и дате, затем транспонируем
     ts = (
         df
         .groupby(['source', 'published_at'])
@@ -184,7 +179,7 @@ def plot_top5_sources_timeseries(df: pd.DataFrame, out_dir: str):
     plt.figure(figsize=(10, 5))
     for src in ts.columns:
         plt.plot(ts.index, ts[src], label=src)
-    plt.title("Временные ряды по ТОП-5 источникам (с 2025-01-01)")
+    plt.title("Упоминания ТОП-5 источников (с 2025-01-01)")
     plt.xlabel("Дата")
     plt.ylabel("Упоминаний")
     plt.legend()
