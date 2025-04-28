@@ -121,19 +121,25 @@ def update_database():
 
 def categorize_news(news: List[Dict]):
     """
-    Фильтрует статьи по тому, кто упоминается.
+    Фильтрует статьи по тому, кто упоминается:
+    Trump, Xi Jinping, Putin.
     """
     trump = []
-    biden = []
-    both  = []
+    xi = []
+    putin = []
+    multiple = []
     for art in news:
         text = ((art.get("title") or "") + " " + (art.get("content") or "")).lower()
         t = "trump" in text
-        b = "biden" in text
-        if t and b:
-            both.append(art)
+        x = ("xi jinping" in text) or ("president xi" in text)
+        p = "putin" in text
+        cnt = sum([t, x, p])
+        if cnt > 1:
+            multiple.append(art)
         elif t:
             trump.append(art)
-        elif b:
-            biden.append(art)
-    return trump, biden, both
+        elif x:
+            xi.append(art)
+        elif p:
+            putin.append(art)
+    return trump, xi, putin, multiple
