@@ -11,18 +11,17 @@ import os
 import sys
 import subprocess
 
-# 0️⃣ Автоматическое клонирование репозитория
+# 0️⃣ Автоматическое клонирование репозитория (если нужно)
 REPO_URL = "https://github.com/vkalinovski/RSS_Project.git"
 LOCAL_DIR = "RSS_Project"
-
 if not os.path.isdir(LOCAL_DIR):
     print(f"Cloning repository from {REPO_URL}...")
     subprocess.run(["git", "clone", REPO_URL, LOCAL_DIR], check=True)
 
-# Добавляем папку с клонированными модулями в путь импорта
+# Добавляем папку с клонированными модулями в PYTHONPATH
 sys.path.insert(0, os.path.abspath(LOCAL_DIR))
 
-# 1️⃣ Импорт всех необходимых модулей
+# 1️⃣ Импорт всех модулей (предварительно установите зависимости вручную!)
 from rss_feeds import RSS_FEEDS
 from api_fetcher import fetch_newsapi_articles
 from rss import fetch_rss_articles
@@ -40,20 +39,20 @@ import pandas as pd
 # 2️⃣ Конфигурация
 KEYWORDS  = ["Emmanuel Macron", "Marine Le Pen"]
 MAX_ITEMS = 200
-OUT_DIR   = "/content/gdrive/MyDrive/test"  # путь к вашей папке на Google Drive
+OUT_DIR   = "/content/gdrive/MyDrive/test"  # убедитесь, что смонтировали сюда Drive
 
 def one_cycle():
     print(f"[{now_utc()}] Запуск цикла: сбор → анализ → сохранение")
 
-    # Создаём или проверяем БД
+    # Инициализация БД
     create_database()
 
-    # Сбор новостей
+    # Сбор статей
     rss_news = fetch_rss_articles(MAX_ITEMS)
     api_news = fetch_newsapi_articles(KEYWORDS, MAX_ITEMS)
     all_news = rss_news + api_news
 
-    # Фильтрация по политическим деятелям
+    # Фильтрация по Macron / Le Pen
     macron = [n for n in all_news if "Emmanuel Macron" in (n.get('content') or "")]
     lepen  = [n for n in all_news if "Marine Le Pen"  in (n.get('content') or "")]
 
@@ -61,16 +60,17 @@ def one_cycle():
     save_news_to_db(macron, "Emmanuel Macron")
     save_news_to_db(lepen,  "Marine Le Pen")
 
-    # Сентимент-анализ
+    # Тональный анализ
     combined = macron + lepen
     sentimented = analyze_sentiment(combined)
 
-    # Построение временного ряда и сохранение в CSV
+    # Временной ряд и CSV
     df = pd.DataFrame(sentimented)
     ts = build_timeseries(df)
+    os.makedirs(OUT_DIR, exist_ok=True)
     ts.to_csv(os.path.join(OUT_DIR, "timeseries.csv"), index=True)
 
-    # Генерация 10 графиков
+    # 10 графиков
     plot1_timeseries(ts, OUT_DIR)
     plot2_bar_total(ts, OUT_DIR)
     plot3_rolling(ts, OUT_DIR)
@@ -82,7 +82,8 @@ def one_cycle():
     plot9_ratio(ts, OUT_DIR)
     plot10_correlation(ts, OUT_DIR)
 
-    print(f"[{now_utc()}] Цикл завершён. Результаты сохранены в {OUT_DIR}")
+    print(f"[{now_utc()}] Цикл завершён. Проверьте папку: {OUT_DIR}")
 
 if __name__ == '__main__':
     one_cycle()
+
