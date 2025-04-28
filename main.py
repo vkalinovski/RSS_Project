@@ -11,7 +11,7 @@ import os
 import sys
 import subprocess
 
-# 0️⃣ Автоматическое клонирование репозитория (если нужно)
+# 0️⃣ Автоматическое клонирование репозитория
 REPO_URL = "https://github.com/vkalinovski/RSS_Project.git"
 LOCAL_DIR = "RSS_Project"
 
@@ -40,12 +40,12 @@ import pandas as pd
 # 2️⃣ Конфигурация
 KEYWORDS  = ["Emmanuel Macron", "Marine Le Pen"]
 MAX_ITEMS = 200
-OUT_DIR   = "/content/gdrive/MyDrive/test"  # папка на вашем Google Drive
+OUT_DIR   = "/content/gdrive/MyDrive/test"  # путь к вашей папке на Google Drive
 
 def one_cycle():
     print(f"[{now_utc()}] Запуск цикла: сбор → анализ → сохранение")
 
-    # Создаём или проверяем базу данных
+    # Создаём или проверяем БД
     create_database()
 
     # Сбор новостей
@@ -57,7 +57,7 @@ def one_cycle():
     macron = [n for n in all_news if "Emmanuel Macron" in (n.get('content') or "")]
     lepen  = [n for n in all_news if "Marine Le Pen"  in (n.get('content') or "")]
 
-    # Сохранение в базу
+    # Сохранение в БД
     save_news_to_db(macron, "Emmanuel Macron")
     save_news_to_db(lepen,  "Marine Le Pen")
 
@@ -65,7 +65,7 @@ def one_cycle():
     combined = macron + lepen
     sentimented = analyze_sentiment(combined)
 
-    # Построение временного ряда и сохранение его в CSV
+    # Построение временного ряда и сохранение в CSV
     df = pd.DataFrame(sentimented)
     ts = build_timeseries(df)
     ts.to_csv(os.path.join(OUT_DIR, "timeseries.csv"), index=True)
