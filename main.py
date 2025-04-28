@@ -11,24 +11,18 @@ import os
 import sys
 import subprocess
 
+# 0️⃣ Автоматическое клонирование репозитория (если нужно)
 REPO_URL = "https://github.com/vkalinovski/RSS_Project.git"
 LOCAL_DIR = "RSS_Project"
 
-# Клонируем репозиторий
 if not os.path.isdir(LOCAL_DIR):
     print(f"Cloning repository from {REPO_URL}...")
     subprocess.run(["git", "clone", REPO_URL, LOCAL_DIR], check=True)
 
-# зависимости
-requirements = os.path.join(LOCAL_DIR, "requirements.txt")
-if os.path.exists(requirements):
-    print("Installing dependencies...")
-    subprocess.run([sys.executable, "-m", "pip", "install", "-r", requirements], check=True)
-
-# Добавляем папку с модулями в путь импорта
+# Добавляем папку с клонированными модулями в путь импорта
 sys.path.insert(0, os.path.abspath(LOCAL_DIR))
 
-# Импорт модулей из клонированного репозитория
+# 1️⃣ Импорт всех необходимых модулей
 from rss_feeds import RSS_FEEDS
 from api_fetcher import fetch_newsapi_articles
 from rss import fetch_rss_articles
@@ -41,19 +35,17 @@ from analyze import (
     plot8_cumulative, plot9_ratio, plot10_correlation
 )
 from utils import now_utc
-
-# Конфигурация
-KEYWORDS   = ["Emmanuel Macron", "Marine Le Pen"]
-MAX_ITEMS  = 200
-OUT_DIR = "/content/gdrive/MyDrive/test"
-
-# Основная логика
 import pandas as pd
+
+# 2️⃣ Конфигурация
+KEYWORDS  = ["Emmanuel Macron", "Marine Le Pen"]
+MAX_ITEMS = 200
+OUT_DIR   = "/content/gdrive/MyDrive/test"  # папка на вашем Google Drive
 
 def one_cycle():
     print(f"[{now_utc()}] Запуск цикла: сбор → анализ → сохранение")
 
-    # Создаём/обновляем БД
+    # Создаём или проверяем базу данных
     create_database()
 
     # Сбор новостей
@@ -69,16 +61,16 @@ def one_cycle():
     save_news_to_db(macron, "Emmanuel Macron")
     save_news_to_db(lepen,  "Marine Le Pen")
 
-    # Тональный анализ
+    # Сентимент-анализ
     combined = macron + lepen
     sentimented = analyze_sentiment(combined)
 
-    # Временной ряд
+    # Построение временного ряда и сохранение его в CSV
     df = pd.DataFrame(sentimented)
     ts = build_timeseries(df)
     ts.to_csv(os.path.join(OUT_DIR, "timeseries.csv"), index=True)
 
-    # 10 графиков глубокого анализа
+    # Генерация 10 графиков
     plot1_timeseries(ts, OUT_DIR)
     plot2_bar_total(ts, OUT_DIR)
     plot3_rolling(ts, OUT_DIR)
