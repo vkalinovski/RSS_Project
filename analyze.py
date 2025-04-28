@@ -7,24 +7,23 @@ Original file is located at
     https://colab.research.google.com/drive/1y_j7EBQXocwJpJVWDYcIBhyr2w0ZG75C
 """
 
-# Файл: RSS_Project/analyze.py
-
 import pandas as pd
 import matplotlib.pyplot as plt
-from typing import List, Dict
+
 
 def build_timeseries(df: pd.DataFrame) -> pd.DataFrame:
     """
     Строит DataFrame с ежедневными счётчиками упоминаний каждого политика.
     Ожидает в df колонки 'published_at' (YYYY-MM-DD) и 'politician'.
     """
-    # Гарантируем, что есть столбец published_at
+    # Переименование, если необходимо
     if "published" in df.columns and "published_at" not in df.columns:
         df = df.rename(columns={"published": "published_at"})
     df["published_at"] = pd.to_datetime(df["published_at"]).dt.strftime("%Y-%m-%d")
     ts = df.groupby(["published_at", "politician"]).size().unstack(fill_value=0)
     ts.index = pd.to_datetime(ts.index)
     return ts.sort_index()
+
 
 def plot_overall_timeseries(ts: pd.DataFrame, out_dir: str):
     """Ежедневные упоминания с 2025-01-01 по сегодня."""
@@ -37,6 +36,7 @@ def plot_overall_timeseries(ts: pd.DataFrame, out_dir: str):
     plt.legend(); plt.tight_layout()
     plt.savefig(f"{out_dir}/overall_daily.png"); plt.close()
 
+
 def plot_monthly_aggregation(ts: pd.DataFrame, out_dir: str):
     """Месячная агрегация упоминаний за весь период."""
     monthly = ts.resample("M").sum()
@@ -45,6 +45,7 @@ def plot_monthly_aggregation(ts: pd.DataFrame, out_dir: str):
     plt.title("Месячные упоминания (всего)")
     plt.xlabel("Месяц"); plt.ylabel("Суммарное число")
     plt.tight_layout(); plt.savefig(f"{out_dir}/monthly.png"); plt.close()
+
 
 def plot_weekly_aggregation(ts: pd.DataFrame, out_dir: str):
     """Недельная агрегация упоминаний за весь период."""
@@ -55,6 +56,7 @@ def plot_weekly_aggregation(ts: pd.DataFrame, out_dir: str):
     plt.title("Недельные упоминания (всего)")
     plt.xlabel("Неделя"); plt.ylabel("Сумма упоминаний")
     plt.legend(); plt.tight_layout(); plt.savefig(f"{out_dir}/weekly.png"); plt.close()
+
 
 def plot_cumulative(ts: pd.DataFrame, out_dir: str):
     """Кумулятивное число упоминаний с 2025-01-01."""
@@ -67,22 +69,24 @@ def plot_cumulative(ts: pd.DataFrame, out_dir: str):
     plt.xlabel("Дата"); plt.ylabel("Кумулятивно")
     plt.legend(); plt.tight_layout(); plt.savefig(f"{out_dir}/cumulative.png"); plt.close()
 
+
 def plot_sentiment_trends(df: pd.DataFrame, out_dir: str):
     """
-    Тренд тональности по неделям: положительные vs отрицательные по каждому политику.
+    Тренд тональности по неделям для каждого политика.
     Ожидает столбцы 'published_at','politician','sentiment'.
     """
     df["week"] = pd.to_datetime(df["published_at"]).dt.to_period("W").apply(lambda r: r.start_time)
-    sent = df.groupby(["week","politician","sentiment"]).size().unstack(fill_value=0)
-    weeks = sorted(sent.index.get_level_values(0).unique())
     plt.figure(figsize=(10,6))
     for pol in df["politician"].unique():
-        for lbl in sent.columns:
-            series = sent.xs((slice(None), pol, lbl), level=(0,1,2))
-            plt.plot(weeks, series, label=f"{pol} – {lbl}")
-    plt.title("Тональность по неделям"); plt.xlabel("Неделя"); plt.ylabel("Статей")
+        sub = df[df["politician"] == pol]
+        grouped = sub.groupby(["week", "sentiment"]).size().unstack(fill_value=0)
+        for sentiment in grouped.columns:
+            plt.plot(grouped.index, grouped[sentiment], label=f"{pol} – {sentiment}")
+    plt.title("Тональность по неделям")
+    plt.xlabel("Неделя"); plt.ylabel("Число статей")
     plt.legend(ncol=2, fontsize="small"); plt.tight_layout()
     plt.savefig(f"{out_dir}/sentiment_trends.png"); plt.close()
+
 
 def plot_top_sources(df: pd.DataFrame, out_dir: str):
     """Топ-5 источников за весь период для каждого политика."""
@@ -90,7 +94,7 @@ def plot_top_sources(df: pd.DataFrame, out_dir: str):
     pols = df["politician"].unique()
     for i, pol in enumerate(pols, 1):
         plt.subplot(1, len(pols), i)
-        top = df[df["politician"]==pol]["source"].value_counts().head(5)
+        top = df[df["politician"] == pol]["source"].value_counts().head(5)
         top.plot(kind="bar")
         plt.title(pol); plt.xlabel(""); plt.ylabel("Упоминаний")
     plt.suptitle("Топ-5 источников по политику"); plt.tight_layout(rect=[0,0,1,0.95])
