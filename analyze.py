@@ -88,17 +88,41 @@ def plot_cumulative(ts: pd.DataFrame, out_dir: str):
 
 def plot_sentiment_trends(df: pd.DataFrame, out_dir: str):
     out_dir = Path(out_dir)
-    df = df.copy(); df['published_at']=pd.to_datetime(df['published_at'])
-    df = df[df['published_at']>=START_DATE]
-    df['week'] = df['published_at'].dt.to_period('W-MON').apply(lambda r: r.start_time)
-    plt.figure(figsize=(10,5))
+    df = df.copy()
+    df['published_at'] = pd.to_datetime(df['published_at'], errors='coerce')
+    df = df[df['published_at'] >= START_DATE]
+    
+    # Группируем по неделям
+    df['week'] = df['published_at'].dt.to_period('W-MON').dt.start_time
+    
+    plt.figure(figsize=(14,8))
+    ax = plt.gca()
+    
     for pol in df['politician'].unique():
-        pivot = df[df['politician']==pol].groupby(['week','sentiment']).size().unstack(fill_value=0)
+        pol_data = df[df['politician'] == pol]
+        pivot = pol_data.groupby(['week', 'sentiment']).size().unstack(fill_value=0)
+        
+        # Нормализация для лучшей визуализации
+        pivot = pivot.div(pivot.sum(axis=1), axis=0)
+        
         for s in pivot.columns:
-            plt.plot(pivot.index, pivot[s], marker='o', label=f"{pol} – {s}")
+            ax.plot(pivot.index, pivot[s], 
+                   marker='o', 
+                   markersize=4,
+                   label=f"{pol} – {s}")
+    
+    # Форматирование дат
+    ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=mdates.MONDAY))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    plt.xticks(rotation=45, ha='right')
+    
     plt.title("Тональность по неделям (с 2024-09-01)")
-    plt.xlabel("Неделя"); plt.ylabel("Число статей")
-    plt.legend(); plt.tight_layout(); plt.savefig(out_dir/"sentiment_trends.png"); plt.close()
+    plt.xlabel("Неделя")
+    plt.ylabel("Доля статей")
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.savefig(out_dir/"sentiment_trends.png", bbox_inches='tight')
+    plt.close()
 
 def plot_top_sources(df: pd.DataFrame, out_dir: str):
     out_dir = Path(out_dir)
