@@ -34,6 +34,7 @@ def create_database():
     print(f"[{now_utc()}] БД готова: {DB_PATH}")
 
 
+
 def clean_value(val: str) -> str:
     """Преобразует пустые строки в None"""
     return val.strip() if isinstance(val, str) and val.strip() else None
