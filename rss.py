@@ -1,37 +1,52 @@
-import feedparser, re
-from datetime import datetime
-from database import categorize, save_news_to_db
+"""
+Парсит RSS-ленты, выбирает статьи о Трампе, Путине, Си.
+"""
 
-RSS = {
- "NYT Politics":"https://rss.nytimes.com/services/xml/rss/nyt/Upshot.xml",
- "Politico":"http://www.politico.com/rss/Top10Blogs.xml",
- "WP Politics":"http://feeds.washingtonpost.com/rss/politics",
- "Fox":"http://feeds.foxnews.com/foxnews/latest?format=xml",
- "BBC":"http://feeds.bbci.co.uk/news/politics/rss.xml",
- "РИА":"https://ria.ru/export/rss2/politics/index.xml",
- "ТАСС":"https://tass.ru/rss/v2.xml",
- "RT":"https://www.rt.com/rss/news/",
- "Xinhua":"http://www.xinhuanet.com/english/rss/worldrss.xml",
- "ChinaDaily":"https://www.chinadaily.com.cn/rss/china_rss.xml",
+import feedparser
+from datetime import datetime
+from database import create, categorize, save
+
+FEEDS = {
+    "NYT Politics":          "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml",
+    "BBC Politics":          "http://feeds.bbci.co.uk/news/politics/rss.xml",
+    "Politico":              "http://www.politico.com/rss/Top10Blogs.xml",
+    "Washington Post":       "http://feeds.washingtonpost.com/rss/politics",
+    "FoxNews":               "http://feeds.foxnews.com/foxnews/latest?format=xml",
+    "РИА":                   "https://ria.ru/export/rss2/politics/index.xml",
+    "ТАСС":                  "https://tass.ru/rss/v2.xml",
+    "RT":                    "https://www.rt.com/rss/news/",
+    "Xinhua":                "http://www.xinhuanet.com/english/rss/worldrss.xml",
+    "China Daily":           "https://www.chinadaily.com.cn/rss/china_rss.xml",
 }
 
-def parse(url,src):
-    f=feedparser.parse(url); out=[]
+def iso(dt):
+    return dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+
+def parse(url, src):
+    f = feedparser.parse(url)
+    rows=[]
     for e in f.entries:
         if not getattr(e,"published_parsed",None): continue
-        dt=datetime(*e.published_parsed[:6]).strftime("%Y-%m-%dT%H:%M:%S+00:00")
-        out.append(dict(source=src,title=e.title, url=e.link, publishedAt=dt,
-                        content=e.get("content",[{}])[0].get("value",""),
-                        description=e.get("description",""),author=e.get("author")))
-    return out
+        dt = datetime(*e.published_parsed[:6])
+        rows.append(
+            dict(
+                source=src,
+                title=e.get("title",""),
+                url=e.get("link",""),
+                publishedAt=iso(dt),
+                content=(e.get("content",[{}])[0].get("value") or e.get("summary","")),
+            )
+        )
+    return rows
 
 def main():
-    all=[]
-    for n,u in RSS.items(): all+=parse(u,n)
-    kw=r"(trump|putin|xi\s+j(?:i|inping))"
-    flt=[a for a in all if re.search(kw,(a["title"]+" "+a["content"]).lower())]
-    t,p,x,m=categorize(flt)
-    save_news_to_db(t,"Trump"); save_news_to_db(p,"Putin")
-    save_news_to_db(x,"Xi");    save_news_to_db(m,"Mixed")
+    create()
+    rows=[]
+    for name,url in FEEDS.items():
+        rows.extend(parse(url,name))
+    buckets = categorize(rows)
+    for bunch in buckets.values(): save(bunch)
 
-if __name__=="__main__": main()
+if __name__=="__main__":
+    main()
+
