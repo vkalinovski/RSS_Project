@@ -1,51 +1,92 @@
-import feedparser
 from datetime import datetime
-from database import create_database, categorize_news, save_news_to_db, remove_duplicates
+
+import feedparser
+
+from database import (
+    create_database,
+    save_news_to_db,
+    categorize_news,
+    remove_duplicates,
+)
 
 RSS_FEEDS = {
-    "NY Times Politics":   "https://rss.nytimes.com/services/xml/rss/nyt/Upshot.xml",
-    # ... другие ленты по вкусу
+    # US / UK
+    "NY Times Politics": "https://rss.nytimes.com/services/xml/rss/nyt/Upshot.xml",
+    "Politico": "http://www.politico.com/rss/Top10Blogs.xml",
+    "Washington Post Politics": "http://feeds.washingtonpost.com/rss/politics",
+    "Fox News Latest": "http://feeds.foxnews.com/foxnews/latest?format=xml",
+    "BBC Politics": "http://feeds.bbci.co.uk/news/politics/rss.xml",
+    # Russia
+    "РИА Политика": "https://ria.ru/export/rss2/politics/index.xml",
+    "ТАСС": "https://tass.ru/rss/v2.xml",
+    "RT English": "https://www.rt.com/rss/news/",
+    # China
+    "Xinhua": "http://www.xinhuanet.com/english/rss/worldrss.xml",
+    "China Daily": "https://www.chinadaily.com.cn/rss/china_rss.xml",
 }
 
-def parse_feed(url, name):
+
+def parse_feed(url: str, source_name: str) -> list[dict]:
     feed = feedparser.parse(url)
-    out = []
+    items = []
     for e in feed.entries:
-        dt = None
+        art = {
+            "source": feed.feed.get("title", source_name),
+            "title": e.get("title", "").strip(),
+            "url": e.get("link", "").strip(),
+            "publishedAt": None,
+            "content": "",
+            "description": e.get("description", "").strip(),
+            "author": e.get("author", "").strip() if e.get("author") else None,
+        }
+
         if e.get("published_parsed"):
-            dt = datetime(*e.published_parsed[:6]).strftime("%Y-%m-%dT%H:%M:%S+00:00")
-        out.append({
-            "source": feed.feed.get("title", name),
-            "title":   e.get("title","").strip(),
-            "url":     e.get("link","").strip(),
-            "publishedAt": dt,
-            "content": e.get("content",[{"value":""}])[0]["value"].strip() if e.get("content") else e.get("description","").strip(),
-            "description": e.get("description","").strip(),
-            "author":  e.get("author","").strip() if e.get("author") else None
-        })
-    return out
+            dt = datetime(*e.published_parsed[:6])
+            art["publishedAt"] = dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+
+        if e.get("content"):
+            art["content"] = e.content[0].value.strip()
+
+        items.append(art)
+    return items
+
 
 def fetch_rss_news():
     create_database()
-    all_arts = []
+
+    articles = []
     for name, url in RSS_FEEDS.items():
-        print("Парсим", name)
-        all_arts.extend(parse_feed(url, name))
+        print(f"RSS: {name}")
+        articles.extend(parse_feed(url, name))
 
-    # Оставляем только статьи с нашими ключевыми словами
-    filtered = []
-    for a in all_arts:
-        txt = (a["title"] + a.get("description","") + a.get("content","")).lower()
-        if any(w in txt for w in ["trump","putin","xi jinping"]):
-            filtered.append(a)
-    print(f"Найдено {len(filtered)} статей в RSS")
+    # фильтр ключевых слов
+    hits = []
+    for a in articles:
+        text = (
+            (a.get("title") or "")
+            + " "
+            + (a.get("description") or "")
+            + " "
+            + (a.get("content") or "")
+        ).lower()
+        if any(
+            k in text
+            for k in ["trump", "putin", "xi jinping", " xi "]
+        ):
+            hits.append(a)
 
-    t,p,x,m = categorize_news(filtered)
-    save_news_to_db(t, "Trump")
-    save_news_to_db(p, "Putin")
-    save_news_to_db(x, "Xi Jinping")
-    save_news_to_db(m, "Multiple")
+    print(f"Найдено {len(hits)} релевантных статей")
+    trump, putin, xi, mixed = categorize_news(hits)
+
+    save_news_to_db(trump, "Trump")
+    save_news_to_db(putin, "Putin")
+    save_news_to_db(xi, "Xi")
+    save_news_to_db(mixed, "Mixed")
+
     remove_duplicates()
+    print("✅ RSS парсинг завершён")
+
 
 if __name__ == "__main__":
     fetch_rss_news()
+
