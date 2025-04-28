@@ -14,31 +14,17 @@ from typing import List, Dict
 
 def build_timeseries(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Возвращает time-series:
-    индекс = дата YYYY-MM-DD, колонки = ['Emmanuel Macron','Marine Le Pen'], значения = количество упоминаний
+    Возвращает ts: индекс = дата, колонки = ['Emmanuel Macron','Marine Le Pen'], значения = counts
     """
-    # если пришёл столбец published -> переименуем
-    if "published" in df.columns and "published_at" not in df.columns:
-        df = df.rename(columns={"published": "published_at"})
-
-    # на случай, если дата содержит время, берём только YYYY-MM-DD
-    df["published_at"] = pd.to_datetime(df["published_at"]).dt.strftime("%Y-%m-%d")
-
-    ts = (
-        df.groupby(["published_at", "politician"])
-          .size()
-          .unstack(fill_value=0)
-    )
-    ts.index = pd.to_datetime(ts.index)          # превращаем индекс в DatetimeIndex
-    ts = ts.sort_index()
-    return ts
-
+    ts = df.groupby(['published_at','politician']).size().unstack(fill_value=0)
+    ts.index = pd.to_datetime(ts.index)
+    return ts.sort_index()
 
 
 # ---------- 10 ВИДОВ ГРАФИКОВ ----------
 
 def plot1_timeseries(ts: pd.DataFrame, out_dir: str):
-    #Линейный график ежедневных упоминаний каждого политика.
+    """Линейный график ежедневных упоминаний каждого политика."""
     plt.figure(figsize=(10,5))
     for col in ts.columns:
         plt.plot(ts.index, ts[col], label=col)
@@ -52,7 +38,7 @@ def plot1_timeseries(ts: pd.DataFrame, out_dir: str):
 
 
 def plot2_bar_total(ts: pd.DataFrame, out_dir: str):
-    #Столбчатая диаграмма суммарных упоминаний за год
+    """Столбчатая диаграмма суммарных упоминаний за год."""
     totals = ts.sum()
     plt.figure(figsize=(8,5))
     totals.plot(kind='bar')
@@ -65,7 +51,7 @@ def plot2_bar_total(ts: pd.DataFrame, out_dir: str):
 
 
 def plot3_rolling(ts: pd.DataFrame, out_dir: str):
-    #Скользящее среднее (7 дней) упоминаний
+    """Скользящее среднее (7 дней) упоминаний."""
     rolling = ts.rolling(window=7, min_periods=1).mean()
     plt.figure(figsize=(10,5))
     for col in rolling.columns:
@@ -80,7 +66,7 @@ def plot3_rolling(ts: pd.DataFrame, out_dir: str):
 
 
 def plot4_monthly(ts: pd.DataFrame, out_dir: str):
-    #Месячная агрегация упоминаний
+    """Месячная агрегация упоминаний."""
     monthly = ts.resample('M').sum()
     plt.figure(figsize=(10,5))
     monthly.plot(kind='bar')
@@ -93,7 +79,7 @@ def plot4_monthly(ts: pd.DataFrame, out_dir: str):
 
 
 def plot5_pie_sources(df: pd.DataFrame, out_dir: str):
-    #Круговая диаграмма распределения упоминаний по источникам
+    """Круговая диаграмма распределения упоминаний по источникам."""
     src_counts = df['source'].value_counts().head(10)
     plt.figure(figsize=(6,6))
     src_counts.plot(kind='pie', autopct='%1.1f%%', startangle=90)
@@ -105,7 +91,7 @@ def plot5_pie_sources(df: pd.DataFrame, out_dir: str):
 
 
 def plot6_weekday(ts: pd.DataFrame, out_dir: str):
-    #Распределение упоминаний по дням недели
+    """Распределение упоминаний по дням недели."""
     weekdays = ts.copy()
     weekdays['weekday'] = weekdays.index.day_name()
     wd_counts = weekdays.groupby('weekday').sum().reindex([
@@ -122,7 +108,7 @@ def plot6_weekday(ts: pd.DataFrame, out_dir: str):
 
 
 def plot7_top_days(ts: pd.DataFrame, out_dir: str):
-    #Топ-10 дней по суммарным упоминаниям
+    """Топ-10 дней по суммарным упоминаниям."""
     top_days = ts.sum(axis=1).sort_values(ascending=False).head(10)
     plt.figure(figsize=(8,5))
     top_days.plot(kind='bar')
@@ -135,7 +121,7 @@ def plot7_top_days(ts: pd.DataFrame, out_dir: str):
 
 
 def plot8_cumulative(ts: pd.DataFrame, out_dir: str):
-    #Накопительный график упоминаний за год
+    """Накопительный график упоминаний за год."""
     cum = ts.cumsum()
     plt.figure(figsize=(10,5))
     for col in cum.columns:
@@ -150,21 +136,26 @@ def plot8_cumulative(ts: pd.DataFrame, out_dir: str):
 
 
 def plot9_ratio(ts: pd.DataFrame, out_dir: str):
-    #Соотношение упоминаний Macron к Le Pen
-    if len(ts.columns) == 2:
-        ratio = ts.iloc[:,0] / ts.iloc[:,1].replace(0, pd.NA)
+    """Соотношение упоминаний Macron к Le Pen."""
+    keys = ts.columns.tolist()
+    if len(keys) >= 2:
+        # вычисляем отношение, избегаем деления на ноль
+        ratio = ts[keys[0]] / ts[keys[1]].replace(0, pd.NA)
+        # убираем пропущенные значения перед рисованием
+        ratio = ratio.dropna()
         plt.figure(figsize=(10,5))
-        plt.plot(ratio.index, ratio, label="Macron/Le Pen")
-        plt.title("Соотношение упоминаний Macron к Le Pen")
+        plt.plot(ratio.index, ratio, label=f"{keys[0]}/{keys[1]}")
+        plt.title(f"Соотношение упоминаний {keys[0]} к {keys[1]}")
         plt.xlabel("Дата")
         plt.ylabel("Соотношение")
+        plt.legend()
         plt.tight_layout()
         plt.savefig(f"{out_dir}/plot9_ratio.png")
         plt.close()
 
 
 def plot10_correlation(ts: pd.DataFrame, out_dir: str):
-    #Корреляционная матрица между рядами упоминаний
+    """Корреляционная матрица между рядами упоминаний."""
     corr = ts.corr()
     plt.figure(figsize=(6,6))
     im = plt.imshow(corr, vmin=-1, vmax=1)
