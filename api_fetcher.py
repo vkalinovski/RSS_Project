@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 import os
-import requests
 from typing import List, Dict
-from utils import normalise_date, now_utc
+from utils import now_utc
+from database_utils import save_news_to_db, categorize_news
+from newsapi import NewsApiClient  # pip install newsapi-python
+
+# Используем библиотеку newsapi-python для упрощения запросов
+API_KEY_VAR = "NEWSAPI_KEY"
 
 def fetch_newsapi_articles(
     keywords: List[str],
@@ -11,41 +15,37 @@ def fetch_newsapi_articles(
 ) -> List[Dict]:
     """
     Сбор статей из NewsAPI.org по ключевым словам.
-    При ошибках возвращает [].
     """
-    api_key = os.getenv("NEWSAPI_KEY")
+    api_key = os.getenv(API_KEY_VAR)
     if not api_key:
-        print(f"[{now_utc()}] Ошибка: не задан NEWSAPI_KEY")
+        print(f"[{now_utc()}] Ошибка: не задан {API_KEY_VAR}")
         return []
-    url = "https://newsapi.org/v2/everything"
-    articles: List[Dict] = []
+    client = NewsApiClient(api_key=api_key)
+    all_articles: List[Dict] = []
     for kw in keywords:
-        params = {
-            "q":       kw,
-            "language":language,
-            "pageSize":max_items,
-            "sortBy":  "publishedAt",
-            "apiKey":  api_key,
-        }
-        try:
-            resp = requests.get(url, params=params, timeout=15)
-            if resp.status_code != 200:
-                print(f"[{now_utc()}] NewsAPI status {resp.status_code}: {resp.text}")
-                return []
-            data = resp.json().get("articles", [])
-        except requests.exceptions.RequestException as e:
-            print(f"[{now_utc()}] NewsAPI request failed: {e}")
-            return []
-        for art in data:
-            articles.append({
+        resp = client.get_everything(q=kw, language=language, page_size=max_items, sort_by="publishedAt")
+        arts = resp.get("articles", [])
+        for art in arts:
+            all_articles.append({
                 "source":   art.get("source", {}).get("name"),
                 "title":    art.get("title"),
                 "content":  art.get("description") or art.get("content"),
-                "published":normalise_date(art.get("publishedAt")),
+                "published":art.get("publishedAt"),
                 "url":      art.get("url"),
                 "author":   art.get("author"),
             })
-            if len(articles) >= max_items:
-                break
-    print(f"[{now_utc()}] Получено через NewsAPI: {len(articles)} статей")
-    return articles
+    print(f"[{now_utc()}] Получено через NewsAPI: {len(all_articles)} статей")
+    return all_articles
+
+def update_news(keywords: List[str] = ["Trump","Biden"], max_items: int = 100):
+    """
+    Загружает и сохраняет новости по списку keywords.
+    """
+    raw = fetch_newsapi_articles(keywords, max_items=max_items)
+    if not raw:
+        return
+    trump_news, biden_news, both_news = categorize_news(raw)
+    save_news_to_db(trump_news, "Trump")
+    save_news_to_db(biden_news, "Biden")
+    save_news_to_db(both_news, "Trump/Biden")
+    print(f"[{now_utc()}] Обновление новостей через NewsAPI завершено.")
