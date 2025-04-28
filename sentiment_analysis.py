@@ -7,16 +7,53 @@ Original file is located at
     https://colab.research.google.com/drive/1y_j7EBQXocwJpJVWDYcIBhyr2w0ZG75C
 """
 
-from transformers import pipeline
+import itertools
+from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 from typing import List, Dict
 
-_sentiment = pipeline('sentiment-analysis')
+# Инициализация pipeline с автоматическим усечением до max_length=512
+_tokenizer = AutoTokenizer.from_pretrained(
+    "distilbert-base-uncased-finetuned-sst-2-english"
+)
+_model = AutoModelForSequenceClassification.from_pretrained(
+    "distilbert-base-uncased-finetuned-sst-2-english"
+)
+_sentiment = pipeline(
+    "sentiment-analysis",
+    model=_model,
+    tokenizer=_tokenizer,
+    device=0 if "CUDA_VISIBLE_DEVICES" in os.environ else -1,
+)
 
-def analyze_sentiment(news: List[Dict]) -> List[Dict]:
-    # Добавляет поле sentiment: positive/negative для каждой статьи.
 
-    texts = [art.get('content') or art.get('title','') for art in news]
-    results = _sentiment(texts)
-    for art, res in zip(news, results):
-        art['sentiment'] = res.get('label')
-    return news
+def analyze_sentiment(
+    articles: List[Dict]
+) -> List[Dict]:
+    """
+    Добавляет к каждой статье поля 'sentiment' и 'score'.
+    Тексты автоматически усечены токенайзером до 512.
+    """
+    texts = []
+    for art in articles:
+        text = (art.get('title') or '') + ' ' + (art.get('content') or '')
+        texts.append(text)
+
+    results = []
+    for chunk_start in range(0, len(texts), 8):  # обрабатываем пакетами по 8
+        batch = texts[chunk_start:chunk_start+8]
+        try:
+            # передаём параметры усечения в вызов pipeline
+            res = _sentiment(batch, truncation=True, max_length=512)
+        except Exception as e:
+            print(f"Error in sentiment pipeline: {e}")
+            res = [{'label': None, 'score': 0.0} for _ in batch]
+        results.extend(res)
+
+    # Обновляем исходные словари
+    out_articles = []
+    for art, r in zip(articles, results):
+        art_copy = art.copy()
+        art_copy['sentiment'] = r.get('label')
+        art_copy['score'] = r.get('score')
+        out_articles.append(art_copy)
+    return out_articles
