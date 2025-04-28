@@ -45,7 +45,7 @@ from utils import now_utc
 # Конфигурация
 KEYWORDS   = ["Emmanuel Macron", "Marine Le Pen"]
 MAX_ITEMS  = 200
-OUT_DIR    = "/content/drive/MyDrive/test"
+OUT_DIR = "/content/gdrive/MyDrive/test"
 
 # Основная логика
 import pandas as pd
