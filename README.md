@@ -3,7 +3,7 @@
 # 📰 RSS / NewsAPI Media-Monitor  
 Tracking global media coverage of **Trump**, **Putin** & **Xi Jinping**  
 ---
-![Краткое описание](docs/img/banner.png)
+<img src="docs/img/banner.png" height="120">
 ---
 > «Мысль, не подкреплённая данными, — просто мнение».  
 
