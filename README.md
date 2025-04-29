@@ -4,12 +4,18 @@
 Tracking global coverage of **Trump**, **Putin** & **Xi Jinping**
 
 <p align="center">
-  <img src="docs/img/banner.png" alt="Banner: Trump • Putin • Xi" width="820">
+  <!-- ширина 820 px достаточно, чтобы баннер был «широким», но не
+       растягивал страницу во весь экран; высота масштабируется
+       автоматически, поэтому указывать height не нужно -->
+  <img src="docs/img/banner1.png"
+       alt="Banner · Trump · Putin · Xi"
+       width="820">
 </p>
 
 > «Мысль, не подкреплённая данными, — просто мнение».
 
 ---
+
 
 ## 1 Пайплайн — шаг за шагом
 
