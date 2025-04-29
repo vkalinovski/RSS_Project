@@ -32,7 +32,6 @@ from September 2024 → today (demo dataset — April 2025).*
 | `analyze.py`     | формирует `news.csv` и **12 графиков** |
 | `requirements.txt` | минимальный stack, совместимый с Google Colab |
 | `schedule_parsing.py` | (опционально) бесконечный цикл «раз в 24 ч» |
-| **`main.py`**    | *не нужен — заменён `database.create()`* |
 
 <img src="https://img.shields.io/badge/python-3.11%2B-blue?logo=python" alt="Python 3.11"> 
 <img src="https://img.shields.io/badge/Colab-compatible-yellow?logo=googlecolab">
