@@ -2,7 +2,8 @@
 
 # 📰 RSS / NewsAPI Media-Monitor  
 Tracking global media coverage of **Trump**, **Putin** & **Xi Jinping**  
-from **April 2025** up to **today**  
+---
+![Краткое описание](docs/img/banner.png)
 ---
 > «Мысль, не подкреплённая данными, — просто мнение».  
 
