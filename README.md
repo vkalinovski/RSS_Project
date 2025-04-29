@@ -2,9 +2,7 @@
 
 # 📰 RSS / NewsAPI Media-Monitor  
 *Tracking global media coverage of **Trump**, **Putin** & **Xi Jinping**  
-from **September 2024** up to **today (+3 days)**  
-Demo-dataset analysed here — **April 2025**.*
-
+from **April 2025** up to **today**  
 ---
 
 ## 0 Зачем нужен этот проект?
