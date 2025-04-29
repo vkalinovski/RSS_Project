@@ -29,7 +29,7 @@ Tracking global coverage of **Putin**, **Trump** & **Xi Jinping**
 | **06. Аналитика** | Генерация `news.csv` + **13 PNG-графиков** | `analyze.py` |
 | **07. Вывод** | В Google Drive остаётся **только**<br>`db/news.db`, `db/news.csv`, `graphs/*.png` | — |
 
-> На графиках диапазон взят с `2024-09-01 → today`
+> На графиках диапазон взят с `2025-01-01 → today`
 
 ---
 
