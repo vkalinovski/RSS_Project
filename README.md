@@ -47,7 +47,6 @@ Demo-dataset analysed here — **April 2025**.*
 | `analyze.py`     | формирует `db/news.csv` и 12 графиков |
 | `requirements.txt` | минимальный stack (Colab-friendly) |
 | `schedule_parsing.py` | опциональный «cron» — каждые 24 ч |
-| **`main.py`** | _больше не нужен_ — удалён |
 
 <img src="https://img.shields.io/badge/Python-3.11+-blue?logo=python"> 
 <img src="https://img.shields.io/badge/Google Colab-compatible-yellow?logo=googlecolab">
