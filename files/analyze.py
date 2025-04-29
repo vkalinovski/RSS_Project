@@ -7,7 +7,7 @@
 (если не указана — news.db рядом со скриптом).
 
 Тайм-диапазон на графиках:
-    1 сентября 2025  …  (сегодня)
+    1 января 2025  …  (сегодня)
 """
 
 import os, sqlite3, pandas as pd, numpy as np
@@ -23,7 +23,7 @@ GR   = ROOT / "graphs"
 GR.mkdir(exist_ok=True)
 
 POL   = ["Trump", "Putin", "Xi"]
-START = pd.Timestamp("2024-09-01")
+START = pd.Timestamp("2025-01-01")
 END   = pd.Timestamp(datetime.utcnow())
 
 # ─────────────────── 2. Загрузка данных ────────────────────
