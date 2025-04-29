@@ -1,7 +1,7 @@
 <!-- ───────────────────────── README.md ───────────────────────── -->
 
 # 📰 RSS / NewsAPI Media-Monitor  
-*Tracking global media coverage of **Trump**, **Putin** & **Xi Jinping**  
+Tracking global media coverage of **Trump**, **Putin** & **Xi Jinping**  
 from **April 2025** up to **today**  
 ---
 
