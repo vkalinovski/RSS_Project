@@ -1,66 +1,58 @@
 # -*- coding: utf-8 -*-
 """
-Скачивает статьи c 1-го сентября 2024 до сегодня (UTC) из Mediastack,
-классифицирует по политикам (Trump, Putin, Xi), сохраняет в news.db.
+Исторический сборщик Mediastack (FREE-plan).
 
-◼️  Переменная окружения / .env:  MEDIASTACK_KEY
-◼️  news.db-путь берётся из env DB_PATH либо располагается рядом с файлом
+• Берёт данные с 01-09-2024 до today  (UTC)
+• По 1 запросу на месяц × 3 политики  →  24 calls  (< 500/мес)
+• Соблюдает лимит 1 call / second  (time.sleep).
+
+.env  ─ MEDIASTACK_KEY
+env   ─ DB_PATH    (опц.)
 """
 
-import os, sys, requests, calendar
+import os, sys, requests, calendar, time
 from datetime import datetime, date
-from pathlib import Path
 from dotenv import load_dotenv
 from database import create, categorize, save
 
-# ─────────────────── 0. API-key ───────────────────
 load_dotenv()
 KEY = os.getenv("MEDIASTACK_KEY")
 if not KEY:
-    sys.exit("❌ MEDIASTACK_KEY не найден в .env")
+    sys.exit("❌ MEDIASTACK_KEY не найден")
 
-# ─────────────────── 1. Константы ─────────────────
+START = date(2024, 9, 1)
+TODAY  = date.today()
+
 POLIT = {
     "Trump": "Trump",
     "Putin": "Putin",
     "Xi":    '"Xi Jinping"',
 }
-START = date(2024, 9, 1)
-TODAY = date.today()
 
 URL  = "http://api.mediastack.com/v1/news"
 BASE = dict(
     access_key = KEY,
     languages  = "en,ru",
     sort       = "published_desc",
-    limit      = 100,          # максимум free-плана
+    limit      = 100,          # 1-shot, без пагинации
 )
 
-# ─────────────────── 2. Хелперы ───────────────────
 def month_pairs():
     y, m = START.year, START.month
     while date(y, m, 1) <= TODAY:
-        last = calendar.monthrange(y, m)[1]
-        yield date(y, m, 1), date(y, m, last)
+        yield date(y, m, 1), date(y, m, calendar.monthrange(y, m)[1])
         y, m = (y + 1, 1) if m == 12 else (y, m + 1)
 
 def fetch(q: str, since: date, until: date):
     params = BASE | {
         "keywords": q,
-        "date":     f"{since},{until}",
-        "offset":   0,
+        "date": f"{since},{until}",
     }
-    arts = []
-    while True:
-        r = requests.get(URL, params=params, timeout=25)
-        if r.status_code != 200:
-            print("Mediastack error:", r.text); break
-        chunk = r.json().get("data", [])
-        if not chunk: break
-        arts.extend(chunk)
-        if len(chunk) < 100: break
-        params["offset"] += 100
-    return arts
+    r = requests.get(URL, params=params, timeout=25)
+    if r.status_code != 200:
+        print("Mediastack error:", r.text)
+        return []
+    return r.json().get("data", [])
 
 def std(a: dict, who: str) -> dict:
     return {
@@ -72,17 +64,17 @@ def std(a: dict, who: str) -> dict:
         "politician": who,
     }
 
-# ─────────────────── 3. Main ──────────────────────
 def main():
     create()
     rows = []
     for who, q in POLIT.items():
         for fr, to in month_pairs():
-            chunk = fetch(q, fr, to)
-            print(f"{who}  {fr:%Y-%m}: {len(chunk)}")
-            rows.extend(std(a, who) for a in chunk)
-    for bunch in categorize(rows).values():
-        save(bunch)
+            data = fetch(q, fr, to)
+            print(f"{who} {fr:%Y-%m}: {len(data)}")
+            rows.extend(std(a, who) for a in data)
+            time.sleep(1.2)          # соблюдаем 1 req/sec
+    for bucket in categorize(rows).values():
+        save(bucket)
 
 if __name__ == "__main__":
     main()
