@@ -2,7 +2,7 @@
 """
 Исторический сборщик Mediastack (FREE-plan).
 
-• Берёт данные с 01-09-2024 до today  (UTC)
+• Берёт данные с 01-01-2025 до today  (UTC)
 • По 1 запросу на месяц × 3 политики  →  24 calls  (< 500/мес)
 • Соблюдает лимит 1 call / second  (time.sleep).
 
@@ -20,7 +20,7 @@ KEY = os.getenv("MEDIASTACK_KEY")
 if not KEY:
     sys.exit("❌ MEDIASTACK_KEY не найден")
 
-START = date(2024, 9, 1)
+START = date(2025, 1, 1)
 TODAY  = date.today()
 
 POLIT = {
