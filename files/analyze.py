@@ -7,7 +7,7 @@
 (если не указана — news.db рядом со скриптом).
 
 Тайм-диапазон на графиках:
-    1 сентября 2024  …  (сегодня + 3 дня)
+    1 апреля 2025  …  (сегодня)
 """
 
 import os, sqlite3, pandas as pd, numpy as np
@@ -23,8 +23,8 @@ GR   = ROOT / "graphs"
 GR.mkdir(exist_ok=True)
 
 POL   = ["Trump", "Putin", "Xi"]
-START = pd.Timestamp("2024-09-01")
-END   = pd.Timestamp(datetime.utcnow() + timedelta(days=3))
+START = pd.Timestamp("2025-04-01")
+END   = pd.Timestamp(datetime.utcnow())
 
 # ─────────────────── 2. Загрузка данных ────────────────────
 if not DB.exists():
