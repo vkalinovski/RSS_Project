@@ -1,86 +1,120 @@
 <!-- ───────────────────────── README.md ───────────────────────── -->
 
 # 📰 RSS / NewsAPI Media-Monitor  
-*Monitoring headline dynamics for **Trump**, **Putin** & **Xi Jinping**  
-from April 2025 → today*
+*Tracking global media coverage of **Trump**, **Putin** & **Xi Jinping**  
+from **September 2024** up to **today (+3 days)**  
+Demo-dataset analysed here — **April 2025**.*
 
 ---
 
-## 1 Что делает проект
-| Этап | Описание |
-|------|----------|
-| **Сбор** | • качает новости за последние 30 дней из **NewsAPI**<br>• парсит ±40 RSS-лент крупнейших мировых СМИ |
-| **Хранение** | сохраняет статьи в SQLite-базу **`news.db`**<br>формат 💾 `source · title · url · published_at · content · politician · sentiment` |
-| **Аналитика** | • классификация по политикам (Trump / Putin / Xi / Mixed)<br>• анализ тональности `positive/neutral/negative` (NLTK VADER)<br>• 12 информативных графиков — тайм-серии, heatmap, pie/bar/stack |
-| **Вывод** | в `/MyDrive/test` остаются ровно **3 единицы**:<br>`news.db`, `news.csv`, папка `graphs/` с PNG-картинками |
+## 0 Зачем нужен этот проект?
 
-💡 **Фокус демо-набора** — **апрель 2025 г.** На графиках диапазон ограничен  
-`2025-04-01 … (today)`, поэтому в репрезентативной выгрузке
-видны пики, приуроченные к апрельским событиям 2025 года.
+> «Мысль, не подкреплённая данными, — просто мнение».  
+> Сервис собирает сырые новости **из двух независимых каналов**  
+> (NewsAPI + прямые RSS-ленты), приводит к единому формату,  
+> размечает, считает тональность, выводит 12 готовых графиков —  
+> чтобы спор на кухне можно было проверять цифрами.
+
+---
+
+## 1 Пайплайн — шаг за шагом
+
+| Шаг | Что происходит | Скрипт |
+|-----|----------------|--------|
+| **01. Сбор** | • 30-дневная выгрузка из **NewsAPI**<br>• парсинг ≈ 40 RSS-лент (см. `rss_feeds.py`) | `api_fetcher.py` / `rss.py` |
+| **02. Очистка** | нормализация дат ISO, удаление дублей URL | `database.py` |
+| **03. Классификация** | RegExp → `Trump` / `Putin` / `Xi` / `Mixed` | `database.py` |
+| **04. Хранение** | всё складывается в **SQLite** `db/news.db` | `database.py` |
+| **05. Тональность** | NLTK-VADER → `positive / neutral / negative` | `sentiment_analysis.py` |
+| **06. Аналитика** | Генерация `news.csv` + **12 PNG-графиков** | `analyze.py` |
+| **07. Вывод** | В Google Drive остаётся **только**<br>`db/news.db`, `db/news.csv`, `graphs/*.png` | — |
+
+> На графиках диапазон принудительно обрезан  
+> `2024-09-01 → (today + 3 days)`, поэтому в демо видны всплески,
+> связанные с событиями **апреля 2025**.
 
 ---
 
 ## 2 Структура репозитория `RSS_Project/files`
 
-| Файл | Что делает |
-|------|------------|
-| `api_fetcher.py` | выгрузка статей из **NewsAPI** |
-| `rss_feeds.py`   | 💡 список RSS-источников (расширяйте при желании) |
-| `rss.py`         | парсинг всех лент из `rss_feeds.py` |
-| `database.py`    | единый слой работы c SQLite; путь к базе — переменная **`DB_PATH`** |
-| `sentiment_analysis.py` | оценка тональности NLTK-VADER |
-| `analyze.py`     | формирует `news.csv` и **12 графиков** |
-| `requirements.txt` | минимальный stack, совместимый с Google Colab |
-| `schedule_parsing.py` | (опционально) бесконечный цикл «раз в 24 ч» |
+| Файл | Назначение |
+|------|-----------|
+| `api_fetcher.py` | выгрузка статей из NewsAPI |
+| `rss_feeds.py`   | список RSS-источников (легко расширяется) |
+| `rss.py`         | чтение всех лент, первичная фильтрация |
+| `database.py`    | работа с SQLite; путь к базе → env `DB_PATH` |
+| `sentiment_analysis.py` | тональность VADER |
+| `analyze.py`     | формирует `db/news.csv` и 12 графиков |
+| `requirements.txt` | минимальный stack (Colab-friendly) |
+| `schedule_parsing.py` | опциональный «cron» — каждые 24 ч |
+| **`main.py`** | _больше не нужен_ — удалён |
 
-<img src="https://img.shields.io/badge/python-3.11%2B-blue?logo=python" alt="Python 3.11"> 
-<img src="https://img.shields.io/badge/Colab-compatible-yellow?logo=googlecolab">
+<img src="https://img.shields.io/badge/Python-3.11+-blue?logo=python"> 
+<img src="https://img.shields.io/badge/Google Colab-compatible-yellow?logo=googlecolab">
 
 ---
 
-## 3 Быстрый старт в Google Colab
+## 3 Содержимое результирующих папок
 
-> **✂️ Скопируйте** ячейку ниже в Colab → введите ваш NewsAPI key → `▶︎ Run all`.
+**Что внутри?**
+
+| Файл/папка | Смысл |
+|------------|-------|
+| `db/news.db` | Главная база данных (SQLite). Содержит все статьи с полями:<br>`source`, `title`, `url`, `published_at`, `content`, `politician`, `sentiment`. |
+| `db/news.csv` | Тот же набор данных, но в CSV-виде — откройте в Excel, Apache Superset, pandas. |
+| `graphs/` | 12 PNG-графиков:<br>• тайм-серии упоминаний, stacked-area, cumulative<br>• позитив vs негатив во времени и по источникам<br>• pie-диаграммы, heatmap последних 30 дней<br>• распределения по дням недели и по часам суток. |
+
+> Оставляем только эти артефакты в Google Drive,  
+> чтобы не захламлять хранилище промежуточными .py-файлами.
+
+
+---
+
+## 4 One-click launch в Google Colab
+
+> Скопируйте блок, вставьте в Colab,  
+> замените `YOUR_NEWSAPI_KEY`, жмите **Run all**.
 
 ```python
-# 🗝️  вставьте собственный ключ
-NEWSAPI_KEY = "YOUR_NEWSAPI_KEY_HERE"
+# 🗝️ вставьте свой NEWSAPI KEY
+NEWSAPI_KEY = "YOUR_NEWSAPI_KEY"
 
-# ───────────── пуск ─────────────
 from google.colab import drive
-import pathlib, shutil, os, glob, subprocess, sys
+import os, pathlib, shutil, glob, subprocess, sys
 
 drive.mount("/content/drive", force_remount=False)
 
-DRIVE_DIR = pathlib.Path("/content/drive/MyDrive/test")      # итоговые файлы
-TMP_DIR   = pathlib.Path("/content/RSS_tmp")                 # клон репо (RAM)
+DRIVE = pathlib.Path("/content/drive/MyDrive/test")   # финальные файлы
+TMP   = pathlib.Path("/content/RSS_tmp")              # клон репо
 
 os.chdir("/content")
-if TMP_DIR.exists(): shutil.rmtree(TMP_DIR)
-!git clone --depth 1 https://github.com/vkalinovski/RSS_Project.git {TMP_DIR}
+if TMP.exists(): shutil.rmtree(TMP)
+!git clone -q --depth 1 https://github.com/vkalinovski/RSS_Project.git {TMP}
 
-CODE = next((p.parent for p in TMP_DIR.rglob("api_fetcher.py")), TMP_DIR)
-print("📂  scripts:", CODE)
+CODE = next((p.parent for p in TMP.rglob("api_fetcher.py")), TMP)
+print("📂 scripts:", CODE)
 
 !pip install -q feedparser requests python-dotenv pandas==2.2.2 matplotlib==3.8.4 nltk tqdm
 
-DB_FILE = DRIVE_DIR / "news.db"
-os.environ["DB_PATH"] = str(DB_FILE)
+os.environ["DB_PATH"] = str(DRIVE/"news.db")
 (CODE/".env").write_text(f"NEWSAPI_KEY={NEWSAPI_KEY}\n")
 
 %cd {CODE}
-!python api_fetcher.py
-!python rss.py
-!python sentiment_analysis.py
+!python api_fetcher.py          || echo "NewsAPI step failed"
+!python rss.py                  || echo "RSS step failed"
+!python sentiment_analysis.py   || echo "Sentiment step failed"
 
-if not DB_FILE.exists() and pathlib.Path("news.db").exists():
-    DRIVE_DIR.mkdir(parents=True, exist_ok=True)
-    shutil.move("news.db", DB_FILE)
+if not pathlib.Path(os.environ["DB_PATH"]).exists() and pathlib.Path("news.db").exists():
+    DRIVE.mkdir(parents=True, exist_ok=True)
+    shutil.move("news.db", os.environ["DB_PATH"])
 
-!python analyze.py        # пишет news.csv + graphs рядом с news.db
+!python analyze.py              || echo "Analyze failed"
 
-for f in glob.glob("news.csv"): shutil.move(f, DRIVE_DIR/"news.csv")
+for f in glob.glob("news.csv"):
+    shutil.move(f, DRIVE/"news.csv")
 if (CODE/"graphs").is_dir():
-    shutil.move(str(CODE/"graphs"), DRIVE_DIR/"graphs")
+    if (DRIVE/"graphs").exists(): shutil.rmtree(DRIVE/"graphs")
+    shutil.move(str(CODE/"graphs"), DRIVE/"graphs")
 
-print("\n✅  Всё готово!  news.db, news.csv, graphs/ →", DRIVE_DIR)
+print("\n✅ Готово! Смотрите db/ и graphs/ в", DRIVE)
+
