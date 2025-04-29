@@ -2,7 +2,7 @@
 
 # 📰 RSS / NewsAPI Media-Monitor  
 *Monitoring headline dynamics for **Trump**, **Putin** & **Xi Jinping**  
-from September 2024 → today (demo dataset — April 2025).*
+from April 2025 → today*
 
 ---
 
