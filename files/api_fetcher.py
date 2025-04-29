@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Загрузка статей из NewsAPI (последние 30 дней).
+Загрузка статей из NewsAPI (последние 240 дней).
 NEWSAPI_KEY берётся из .env (или переменной окружения).
 news.db сохраняется по пути DB_PATH (см. database.py).
 """
@@ -19,7 +19,7 @@ URL = "https://newsapi.org/v2/everything"
 HEAD = {"Authorization": KEY}
 
 POLIT = {"Trump": "Trump", "Putin": "Putin", "Xi": '"Xi Jinping"'}
-SPAN_DAYS = 30
+SPAN_DAYS = 240
 PAGE_SIZE = 100
 MAX_PAGES = 5          # 5×100 = 500 статей на персона
 
