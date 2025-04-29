@@ -7,7 +7,7 @@ Tracking global coverage of **Putin**, **Trump** & **Xi Jinping**
   <!-- ширина 820 px достаточно, чтобы баннер был «широким», но не
        растягивал страницу во весь экран; высота масштабируется
        автоматически, поэтому указывать height не нужно -->
-  <img src="docs/img/banner1.png"
+  <img src="docs/img/banner.png"
        alt="Banner · Putin · Trump · Xi"
        width="820">
 </p>
