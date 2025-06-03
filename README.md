@@ -1,79 +1,71 @@
-<!-- ───────────────────────── README.md ───────────────────────── -->
-
 # 📰 RSS / Media-Monitor  
 Tracking global coverage of **Putin**, **Trump** & **Xi Jinping**
 
 <p align="center">
-  <!-- ширина 820 px достаточно, чтобы баннер был «широким», но не
-       растягивал страницу во весь экран; высота масштабируется
-       автоматически, поэтому указывать height не нужно -->
   <img src="docs/img/banner.png"
        alt="Banner · Putin · Trump · Xi"
        width="820">
 </p>
 
-> «Мысль, не подкреплённая данными, — просто мнение».
+> “A thought not supported by data is just an opinion.”
 
 ---
 
+## 1 Pipeline — Step by Step
 
-## 1 Пайплайн — шаг за шагом
+| Step | Action | Script |
+|------|--------|--------|
+| **01. Collection** | • 30-day extraction from **NewsAPI**<br>• parsing ≈ 40 RSS feeds (see `rss_feeds.py`) | `api_fetcher.py` / `rss.py` |
+| **02. Cleaning**   | normalize dates to ISO, remove duplicate URLs | `database.py` |
+| **03. Classification** | RegExp → `Trump` / `Putin` / `Xi` / `Mixed` | `database.py` |
+| **04. Storage**    | everything is saved into **SQLite** `db/news.db` | `database.py` |
+| **05. Sentiment Analysis** | NLTK-VADER → `positive / neutral / negative` | `sentiment_analysis.py` |
+| **06. Analytics**  | generate `news.csv` + **13 PNG charts** | `analyze.py` |
+| **07. Output**     | Only the following remain in Google Drive:<br>`db/news.db`, `db/news.csv`, `graphs/*.png` | — |
 
-| Шаг | Что происходит | Скрипт |
-|-----|----------------|--------|
-| **01. Сбор** | • 30-дневная выгрузка из **NewsAPI**<br>• парсинг ≈ 40 RSS-лент (см. `rss_feeds.py`) | `api_fetcher.py` / `rss.py` |
-| **02. Очистка** | нормализация дат ISO, удаление дублей URL | `database.py` |
-| **03. Классификация** | RegExp → `Trump` / `Putin` / `Xi` / `Mixed` | `database.py` |
-| **04. Хранение** | всё складывается в **SQLite** `db/news.db` | `database.py` |
-| **05. Тональность** | NLTK-VADER → `positive / neutral / negative` | `sentiment_analysis.py` |
-| **06. Аналитика** | Генерация `news.csv` + **13 PNG-графиков** | `analyze.py` |
-| **07. Вывод** | В Google Drive остаётся **только**<br>`db/news.db`, `db/news.csv`, `graphs/*.png` | — |
-
-> На графиках диапазон взят с `2025-01-01 → today`
+> All charts cover the date range `2025-01-01 → today`
 
 ---
 
-## 2 Структура репозитория `RSS_Project/files`
+## 2 Repository Structure `RSS_Project/files`
 
-| Файл | Назначение |
-|------|-----------|
-| `api_fetcher.py` | выгрузка статей из NewsAPI |
-| `rss_feeds.py`   | список RSS-источников (легко расширяется) |
-| `rss.py`         | чтение всех лент, первичная фильтрация |
-| `database.py`    | работа с SQLite; путь к базе → env `DB_PATH` |
-| `sentiment_analysis.py` | тональность VADER |
-| `analyze.py`     | формирует `db/news.csv` и 13 графиков |
-| `requirements.txt` | минимальный stack (Colab-friendly) |
-| `schedule_parsing.py` | опциональный «cron» — каждые 24 ч |
+| File | Purpose |
+|------|---------|
+| `api_fetcher.py`         | fetch articles from NewsAPI |
+| `rss_feeds.py`           | list of RSS sources (easily extendable) |
+| `rss.py`                 | read all feeds, initial filtering |
+| `database.py`            | work with SQLite; database path → env `DB_PATH` |
+| `sentiment_analysis.py`  | conduct VADER sentiment analysis |
+| `analyze.py`             | produce `db/news.csv` and 13 charts |
+| `requirements.txt`       | minimal stack (Colab-friendly) |
+| `schedule_parsing.py`    | optional “cron” — every 24 hours |
 
 <img src="https://img.shields.io/badge/Python-3.11+-blue?logo=python"> 
 <img src="https://img.shields.io/badge/Google Colab-compatible-yellow?logo=googlecolab">
 
 ---
 
-## 3 Содержимое результирующих папок
+## 3 Contents of Output Folders
 
-**Что внутри?**
+**What’s inside?**
 
-| Файл/папка | Смысл |
-|------------|-------|
-| `db/news.db` | Главная база данных (SQLite). Содержит все статьи с полями:<br>`source`, `title`, `url`, `published_at`, `content`, `politician`, `sentiment`. |
-| `db/news.csv` | Тот же набор данных, но в CSV-виде — откройте в Excel, Apache Superset, pandas. |
-| `graphs/` | 13 PNG-графиков:<br>• тайм-серии упоминаний, stacked-area, cumulative<br>• позитив vs негатив во времени и по источникам<br>• pie-диаграммы, heatmap последних 30 дней<br>• распределения по дням недели и по часам суток. |
+| File/Folder | Description |
+|-------------|-------------|
+| `db/news.db`   | Main SQLite database. Contains all articles with fields:<br>`source`, `title`, `url`, `published_at`, `content`, `politician`, `sentiment`. |
+| `db/news.csv`  | The same dataset exported as CSV — open in Excel, Apache Superset, pandas. |
+| `graphs/`      | 13 PNG charts:<br>• time series of mentions (stacked area, cumulative)<br>• positive vs negative over time and by source<br>• pie charts, heatmap of last 30 days<br>• distributions by day of week and hour of day. |
 
-> Оставляем только эти артефакты в Google Drive,  
-> чтобы не захламлять хранилище промежуточными .py-файлами.
-
+> We keep only these artifacts in Google Drive to avoid cluttering storage with intermediate `.py` files.
 
 ---
 
-## 4 One-click launch в Google Colab
+## 4 One-Click Launch in Google Colab
 
-> Скопируйте блок, вставьте в Colab,  
-> замените `YOUR_NEWSAPI_KEY`, жмите **Run all**.
+> Copy this block, paste into Colab,  
+> replace `YOUR_NEWSAPI_KEY`, then click **Run all**.
 
 ```python
-# 🗝️ вставьте свой NEWSAPI KEY
+# 🗝️ insert your NEWSAPI KEY
 NEWSAPI_KEY = "YOUR_NEWSAPI_KEY"
 
 from google.colab import drive
@@ -81,8 +73,8 @@ import os, pathlib, shutil, glob, subprocess, sys
 
 drive.mount("/content/drive", force_remount=False)
 
-DRIVE = pathlib.Path("/content/drive/MyDrive/test")   # финальные файлы
-TMP   = pathlib.Path("/content/RSS_tmp")              # клон репо
+DRIVE = pathlib.Path("/content/drive/MyDrive/test")   # final files
+TMP   = pathlib.Path("/content/RSS_tmp")              # repo clone
 
 os.chdir("/content")
 if TMP.exists(): shutil.rmtree(TMP)
@@ -113,5 +105,5 @@ if (CODE/"graphs").is_dir():
     if (DRIVE/"graphs").exists(): shutil.rmtree(DRIVE/"graphs")
     shutil.move(str(CODE/"graphs"), DRIVE/"graphs")
 
-print("\n✅ Готово! Смотрите db/ и graphs/ в", DRIVE)
+print("\n✅ Done! Check db/ and graphs/ in", DRIVE)
 
