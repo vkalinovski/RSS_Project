@@ -81,7 +81,7 @@ if TMP.exists(): shutil.rmtree(TMP)
 !git clone -q --depth 1 https://github.com/vkalinovski/RSS_Project.git {TMP}
 
 CODE = next((p.parent for p in TMP.rglob("api_fetcher.py")), TMP)
-print("📂 scripts:", CODE)
+print("scripts:", CODE)
 
 !pip install -q feedparser requests python-dotenv pandas==2.2.2 matplotlib==3.8.4 nltk tqdm
 
@@ -105,5 +105,4 @@ if (CODE/"graphs").is_dir():
     if (DRIVE/"graphs").exists(): shutil.rmtree(DRIVE/"graphs")
     shutil.move(str(CODE/"graphs"), DRIVE/"graphs")
 
-print("\n✅ Done! Check db/ and graphs/ in", DRIVE)
 
