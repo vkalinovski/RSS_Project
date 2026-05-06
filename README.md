@@ -61,12 +61,9 @@ Tracking global coverage of **Putin**, **Trump** & **Xi Jinping**
 
 ## 4 One-Click Launch in Google Colab
 
-> Copy this block, paste into Colab,  
-> replace `YOUR_NEWSAPI_KEY`, then click **Run all**.
 
 ```python
-# 🗝️ insert your NEWSAPI KEY
-NEWSAPI_KEY = "YOUR_NEWSAPI_KEY"
+NEWSAPI_KEY = "NEWSAPI_KEY"
 
 from google.colab import drive
 import os, pathlib, shutil, glob, subprocess, sys
